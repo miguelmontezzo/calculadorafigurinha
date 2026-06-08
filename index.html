@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora 3D — Acesso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f0f13;
+      --surface:  #18181f;
+      --border:   #2a2a38;
+      --accent:   #ffd700;
+      --accent-text: #0f0f13;
+      --text:     #f0f0f0;
+      --text-muted: #888;
+      --danger:   #f87171;
+      --success:  #4ade80;
+      --radius:   12px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--accent-text);
+    }
+
+    .logo-text { line-height: 1.2; }
+    .logo-name { font-size: 1.1rem; font-weight: 700; }
+    .logo-sub  { font-size: 0.72rem; color: var(--text-muted); }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.75rem;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: inherit;
+      padding: 0.75rem 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    input[type="email"]:focus { border-color: var(--accent); }
+
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: inherit;
+      padding: 0.85rem;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .error-msg {
+      display: none;
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 8px;
+      color: var(--danger);
+      font-size: 0.83rem;
+      padding: 0.7rem 0.9rem;
+      margin-top: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .error-msg.visible { display: block; }
+
+    /* Estado: email enviado */
+    .sent-state {
+      display: none;
+      text-align: center;
+    }
+
+    .sent-state.visible { display: block; }
+    .form-state.hidden   { display: none; }
+
+    .sent-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .sent-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .sent-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .sent-email {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .btn-ghost {
+      width: 100%;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-family: inherit;
+      padding: 0.7rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .footer-note a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="logo">
+    <div class="logo-icon">3D</div>
+    <div class="logo-text">
+      <div class="logo-name">Calculadora 3D</div>
+      <div class="logo-sub">Precificação profissional</div>
+    </div>
+  </div>
+
+  <!-- Estado: formulário -->
+  <div id="formState" class="form-state">
+    <h1>Acessar</h1>
+    <p class="subtitle">Digite seu email cadastrado e enviaremos um link de acesso direto.</p>
+
+    <form id="loginForm" novalidate>
+      <label for="email">Seu email</label>
+      <input type="email" id="email" placeholder="voce@email.com" autocomplete="email" required>
+      <button type="submit" id="loginBtn" class="btn">Enviar link de acesso</button>
+      <div id="errorMsg" class="error-msg"></div>
+    </form>
+  </div>
+
+  <!-- Estado: link enviado -->
+  <div id="sentState" class="sent-state">
+    <div class="sent-icon">📬</div>
+    <div class="sent-title">Verifique seu email</div>
+    <p class="sent-desc">
+      Enviamos um link de acesso para<br>
+      <span id="sentEmail" class="sent-email"></span><br><br>
+      Clique no link para entrar na calculadora. O link expira em 10 minutos.
+    </p>
+    <button class="btn-ghost" id="tryAgainBtn">Usar outro email</button>
+  </div>
+
+  <p class="footer-note">
+    Ainda não tem acesso? <a href="https://hotmart.com" target="_blank">Adquira aqui</a>
+  </p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+</body>
+</html>

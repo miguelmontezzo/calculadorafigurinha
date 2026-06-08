@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora 3D — Precificação</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══ MODAL: CONTRATO DE CONSIGNAÇÃO ════════════════════════ -->
+<div id="contratoModal" class="modal-overlay" style="display:none">
+  <div class="modal-card" style="max-width:700px;max-height:95vh">
+    <div class="modal-header">
+      <h2>📄 Contrato de Consignação</h2>
+      <button class="modal-close" id="contratoClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="contrato-form">
+        <div class="modal-section">
+          <div class="modal-section-title">Consignante — quem fabrica (você)</div>
+          <div class="field"><label>Nome completo / Razão social</label><input type="text" id="ctrNomeConsignante" placeholder="Seu nome completo"></div>
+          <div class="field"><label>CPF / CNPJ</label><input type="text" id="ctrCpfConsignante" placeholder="000.000.000-00"></div>
+          <div class="field"><label>Endereço completo</label><input type="text" id="ctrEndConsignante" placeholder="Rua, número, bairro, cidade - UF, CEP"></div>
+          <div class="field"><label>Telefone / WhatsApp</label><input type="text" id="ctrTelConsignante" placeholder="(11) 99999-9999"></div>
+        </div>
+        <div class="modal-section">
+          <div class="modal-section-title">Consignatário — quem revende</div>
+          <div class="field"><label>Nome completo / Razão social</label><input type="text" id="ctrNomeConsignatario" placeholder="Nome do revendedor"></div>
+          <div class="field"><label>CPF / CNPJ</label><input type="text" id="ctrCpfConsignatario" placeholder="000.000.000-00"></div>
+          <div class="field"><label>Endereço completo</label><input type="text" id="ctrEndConsignatario" placeholder="Endereço do revendedor"></div>
+          <div class="field"><label>Telefone / WhatsApp</label><input type="text" id="ctrTelConsignatario" placeholder="(11) 99999-9999"></div>
+        </div>
+        <div class="modal-section">
+          <div class="modal-section-title">Produto e Condições</div>
+          <div class="field"><label>Descrição do produto</label><input type="text" id="ctrProduto" placeholder="Ex: Miniatura de dragão em PLA, altura 15cm"></div>
+          <div class="bed-row">
+            <div class="field"><label>Quantidade repassada</label><input type="number" id="ctrQuantidade" placeholder="10" min="1"></div>
+            <div class="field"><label>Valor unitário cobrado (R$)</label><input type="number" id="ctrPrecoUnit" placeholder="45.00" min="0" step="0.01"></div>
+          </div>
+          <div class="bed-row">
+            <div class="field"><label>Prazo para acerto (dias)</label><input type="number" id="ctrPrazo" placeholder="30" min="1" value="30"></div>
+            <div class="field"><label>Cidade (foro de eleição)</label><input type="text" id="ctrCidade" placeholder="São Paulo"></div>
+          </div>
+          <div class="field"><label>Observações adicionais (opcional)</label><input type="text" id="ctrObs" placeholder="Ex: Produtos devem ser devolvidos em embalagem original"></div>
+        </div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:0.75rem">
+        <button class="btn" id="previewContratoBtn" style="flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border)">👁️ Visualizar</button>
+        <button class="btn" id="imprimirContratoBtn" style="flex:1">🖨️ Imprimir / PDF</button>
+      </div>
+      <div id="contratoPreviewArea" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════ -->
+<header class="app-header">
+  <div class="header-logo">
+    <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="8" fill="#FFD700"/>
+      <path d="M10 22L16 10L22 22M13 18h6" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Calculadora <span>3D</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.75rem">
+    <p style="font-size:0.78rem;color:var(--text-muted);margin:0" id="headerEmail"></p>
+    <button id="logoutBtn" style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:0.72rem;font-family:inherit;padding:0.3rem 0.65rem;cursor:pointer;transition:border-color 0.15s,color 0.15s" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">Sair</button>
+  </div>
+</header>
+
+<!-- ══ LAYOUT PRINCIPAL ═══════════════════════════════════════ -->
+<div class="app-body">
+
+  <!-- ── COLUNA ESQUERDA: INPUTS ── -->
+  <div class="inputs-col">
+
+    <!-- Precificação & Modalidade — PRIMEIRO -->
+    <div class="card">
+      <div class="card-title">💰 Modalidade de Venda & Precificação</div>
+
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="varejo">🛒 Varejo</button>
+        <button class="mode-tab" data-mode="atacado">📦 Atacado</button>
+        <button class="mode-tab" data-mode="consignado">🤝 Consignado</button>
+      </div>
+
+      <div style="margin-top:0.75rem">
+        <div class="field">
+          <label class="label-with-tip">Lucro sobre o custo (%) <span class="tip-icon" data-tip="Quanto você quer lucrar em cima do custo total. Mercado de impressão 3D no Brasil: 40–60%. Ex: custo R$30 + 40% = preço R$42.">?</span></label>
+          <input type="number" id="margem" placeholder="40" min="0">
+        </div>
+      </div>
+
+      <!-- Atacado -->
+      <div id="mode-atacado" style="display:none;margin-top:0.5rem">
+        <div class="field">
+          <label>Quantidade mínima por pedido</label>
+          <input type="number" id="atacadoQtd" value="10" min="1">
+        </div>
+        <div class="field">
+          <label class="label-with-tip">Desconto sobre preço varejo (%) <span class="tip-icon" data-tip="Desconto para quem compra em quantidade. Cuidado: desconto alto pode zerar o lucro.">?</span></label>
+          <input type="number" id="atacadoDesconto" value="30" min="0" max="80">
+        </div>
+      </div>
+
+      <!-- Consignado — simplificado -->
+      <div id="mode-consignado" style="display:none;margin-top:0.5rem">
+        <p class="section-desc">Você entrega os produtos, o revendedor paga apenas pelo que vendeu dentro do prazo. O que não vendeu, devolve.</p>
+        <div class="field">
+          <label class="label-with-tip">Valor cobrado por unidade (R$) <span class="tip-icon" data-tip="Quanto você recebe por cada peça vendida. O revendedor define o preço dele ao cliente.">?</span></label>
+          <input type="number" id="consigPrecoUnit" placeholder="45.00" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label>Quantidade repassada</label>
+          <input type="number" id="consigQtd" placeholder="10" min="1" step="1" value="10">
+        </div>
+        <div class="field">
+          <label class="label-with-tip">Prazo para acerto (dias) <span class="tip-icon" data-tip="Prazo que o revendedor tem para pagar o que vendeu e devolver o restante. Recomendado: 30 dias.">?</span></label>
+          <input type="number" id="consigPrazo" value="30" min="1">
+        </div>
+        <button class="btn" id="gerarContratoBtn" style="margin-top:0.75rem;background:var(--surface);color:var(--accent);border:1px solid var(--accent)">
+          📄 Gerar Contrato de Consignação
+        </button>
+      </div>
+    </div>
+
+    <!-- Mesas de Impressão -->
+    <div class="card">
+      <div class="card-title">🖨️ Mesas de Impressão</div>
+      <p class="section-desc">Cada mesa = uma parte do produto (caixa, tampa, fecho...) ou uma bandeja separada. Ao final de todas as mesas = 1 ciclo completo.</p>
+
+      <div class="field">
+        <label>Nome do produto</label>
+        <input type="text" id="nomeProduto" placeholder="Ex: Caixa de figurinha">
+      </div>
+
+      <div id="bedsContainer"></div>
+      <button class="btn-add" id="addBedBtn">+ Adicionar mesa / peça</button>
+
+      <!-- Resumo do ciclo — calculado automaticamente -->
+      <div class="ciclo-box" id="cicloBox" style="display:none">
+        <div class="ciclo-title">📦 Resumo do ciclo completo</div>
+        <div id="cicloResumo"></div>
+      </div>
+    </div>
+
+    <!-- Material & Energia -->
+    <div class="card">
+      <div class="card-title">🧵 Material & Energia</div>
+      <div class="field">
+        <label class="label-with-tip">Tipo de filamento <span class="tip-icon" data-tip="Selecione o material — o preço médio de mercado 2026 é preenchido automaticamente. Você pode editar depois.">?</span></label>
+        <div id="filamentoSelector" class="filamento-grid"></div>
+      </div>
+      <div class="field">
+        <label class="label-with-tip">Preço do filamento (R$/kg) <span class="tip-icon" data-tip="Preço que você pagou pelo rolo. Verifique a embalagem ou nota fiscal.">?</span></label>
+        <input type="number" id="precoKg" placeholder="79.00" min="0" step="0.01">
+        <span class="field-hint" id="precoKgHint"></span>
+      </div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="estado"></select>
+      </div>
+      <div class="field">
+        <label class="label-with-tip">Tarifa de energia (R$/kWh) <span class="tip-icon" data-tip="Valor da sua conta de luz ÷ consumo em kWh. Preenchido pela média do estado — edite se souber o seu real.">?</span></label>
+        <input type="number" id="kwh" placeholder="0.76" min="0" step="0.01">
+      </div>
+    </div>
+
+    <!-- Outros Custos -->
+    <div class="card">
+      <div class="card-title">📦 Outros Custos</div>
+      <div class="field">
+        <label class="label-with-tip">Embalagem (R$) <span class="tip-icon" data-tip="Custo do saco zip, caixinha, papel bolha. Média: R$2 a R$8 por peça.">?</span></label>
+        <input type="number" id="embalagem" placeholder="3.50" min="0" step="0.01">
+      </div>
+      <div class="mao-obra-grid">
+        <div class="field">
+          <label class="label-with-tip">Seu tempo (h) <span class="tip-icon" data-tip="Horas que VOCÊ trabalha: retirar suporte, lixar, embalar, postar. Não inclui o tempo da impressora sozinha.">?</span></label>
+          <input type="number" id="laborHours" placeholder="0.5" min="0" step="0.1">
+        </div>
+        <div class="field">
+          <label class="label-with-tip">R$/hora <span class="tip-icon" data-tip="Quanto vale o seu tempo. Mínimo recomendado: R$20/h.">?</span></label>
+          <input type="number" id="laborRate" placeholder="20" min="0">
+        </div>
+      </div>
+      <div class="field">
+        <label class="label-with-tip">Taxa de falhas (%) <span class="tip-icon" data-tip="% das impressões com defeito. Iniciante: 15%. Experiente: 10%. Avançado: 5%. O custo das peças ruins é distribuído entre as boas.">?</span></label>
+        <input type="number" id="falhas" placeholder="10" min="0" max="100">
+      </div>
+    </div>
+
+  </div><!-- fim inputs-col -->
+
+  <!-- ── COLUNA DIREITA: RESULTADOS + PLANEJAMENTO ── -->
+  <div class="results-col">
+
+    <!-- Resultados -->
+    <div class="results-card" style="margin-bottom:1.5rem">
+      <div class="results-top-bar">
+        <div class="results-tabs">
+          <button class="results-tab active" data-rtab="custos">💰 Custos</button>
+          <button class="results-tab" data-rtab="varejo-local">🏪 Comércio Local</button>
+          <button class="results-tab" data-rtab="marketplace">🛒 Marketplace</button>
+        </div>
+      </div>
+      <div id="rtab-custos" class="rtab-panel">
+        <div class="empty-state"><div class="icon">🖨️</div>Selecione a impressora e preencha os campos ao lado</div>
+      </div>
+      <div id="rtab-varejo-local" class="rtab-panel" style="display:none">
+        <div class="empty-state"><div class="icon">🏪</div>Preencha os campos para ver os preços sugeridos</div>
+      </div>
+      <div id="rtab-marketplace" class="rtab-panel" style="display:none">
+        <div class="empty-state"><div class="icon">🛒</div>Preencha os campos para ver os preços por marketplace</div>
+      </div>
+    </div>
+
+    <!-- Planejamento de Produção -->
+    <div class="results-card">
+      <div class="results-top-bar" style="border-bottom:1px solid var(--border)">
+        <div class="card-title" style="margin-bottom:0">📅 Planejamento de Produção</div>
+        <span id="planItemInfo" style="font-size:0.75rem;color:var(--text-muted)">Preencha as mesas ao lado</span>
+      </div>
+
+      <div class="planner-inline">
+        <div class="planner-inputs">
+          <div class="field">
+            <label>Quantidade a produzir</label>
+            <input type="number" id="planQuantidade" placeholder="100" min="1">
+          </div>
+          <div class="field">
+            <label>Impressoras disponíveis</label>
+            <input type="number" id="planNImpressoras" value="1" min="1">
+          </div>
+          <div class="field">
+            <label>Hora de dormir</label>
+            <input type="time" id="planDormir" value="23:00">
+          </div>
+          <div class="field">
+            <label>Hora de acordar</label>
+            <input type="time" id="planAcordar" value="07:00">
+          </div>
+          <button class="btn" id="gerarPlanBtn" style="grid-column:1/-1">📅 Gerar planejamento</button>
+        </div>
+        <div id="plannerResults">
+          <div class="empty-state" style="padding:1.5rem"><div class="icon" style="font-size:1.8rem">📅</div>Clique em "Gerar planejamento"</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- fim results-col -->
+
+</div><!-- fim app-body -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="energia-estados.js"></script>
+<script src="marketplaces.js"></script>
+<script src="impressoras.js"></script>
+<script src="beds.js"></script>
+<script src="calc.js"></script>
+<script src="planner.js"></script>
+<script src="contrato.js"></script>
+<script>
+  // Mostra email do usuário logado no header
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    const el = document.getElementById('headerEmail');
+    if (el && session?.user?.email) el.textContent = session.user.email;
+  });
+</script>
+</body>
+</html>
