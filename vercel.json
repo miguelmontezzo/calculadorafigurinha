@@ -1,4 +1,8 @@
 {
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/calculadora", "destination": "/calculadora.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -9,8 +13,7 @@
     }
   ],
   "functions": {
-    "api/hotmart-webhook.js": {
-      "maxDuration": 10
-    }
+    "api/hotmart-webhook.js": { "maxDuration": 10 },
+    "api/import-members.js":  { "maxDuration": 10 }
   }
 }
