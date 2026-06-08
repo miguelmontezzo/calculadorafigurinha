@@ -390,14 +390,35 @@
     }
 
     // Testa o token contra a API com uma lista vazia
-    const res = await fetch(`${API_BASE}/api/import-members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-      body: JSON.stringify({ members: [] })
-    });
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/api/import-members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ members: [] })
+      });
+    } catch {
+      errEl.textContent = 'Erro de conexão com o servidor.';
+      errEl.classList.add('visible');
+      return;
+    }
 
+    // Só aceita 200 como sucesso — qualquer outro status bloqueia
     if (res.status === 401) {
       errEl.textContent = 'Senha incorreta.';
+      errEl.classList.add('visible');
+      return;
+    }
+
+    if (res.status === 500) {
+      const json = await res.json().catch(() => ({}));
+      errEl.textContent = json.error || 'Erro no servidor. Verifique as variáveis de ambiente no Vercel.';
+      errEl.classList.add('visible');
+      return;
+    }
+
+    if (res.status !== 200) {
+      errEl.textContent = `Erro inesperado (status ${res.status}). Tente novamente.`;
       errEl.classList.add('visible');
       return;
     }
