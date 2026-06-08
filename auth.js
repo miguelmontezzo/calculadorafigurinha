@@ -1,16 +1,10 @@
-// Substitua pelos valores do seu projeto Supabase
-// Settings > API no painel do Supabase
-const SUPABASE_URL     = 'https://idurcwbkuyziawvzvvtv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkdXJjd2JrdXl6aWF3dnp2dnR2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDk1Mzc3NCwiZXhwIjoyMDk2NTI5Nzc0fQ.wK0y-o9n8-yxMpLc7Iz3ujORmh0hNEjee3a3pjCUGO4';
+const SUPABASE_URL      = 'https://idurcwbkuyziawvzvvtv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkdXJjd2JrdXl6aWF3dnp2dnR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTM3NzQsImV4cCI6MjA5NjUyOTc3NH0.4WG7_UKat2YvpC5JTa9eTx4buEzqiPz2Jt4IGWjMKCQ';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Proteção da calculadora ───────────────────────────────────
-// Chame no topo de calculadora.html — redireciona se não autenticado
 async function requireAuth() {
-  // Supabase processa o magic link da URL automaticamente
-  await supabase.auth.getSession();
-
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
@@ -18,7 +12,6 @@ async function requireAuth() {
     return null;
   }
 
-  // Verifica se o email está ativo na tabela de autorizados
   const { data, error } = await supabase
     .from('users_autorizados')
     .select('ativo')
@@ -34,45 +27,38 @@ async function requireAuth() {
   return session;
 }
 
-// ── Login com magic link ──────────────────────────────────────
+// ── Login com código OTP ──────────────────────────────────────
 function initLogin() {
-  const form      = document.getElementById('loginForm');
-  if (!form) return;
+  if (!document.getElementById('emailForm')) return;
 
-  const emailInput  = document.getElementById('email');
-  const btn         = document.getElementById('loginBtn');
-  const errorEl     = document.getElementById('errorMsg');
-  const formState   = document.getElementById('formState');
-  const sentState   = document.getElementById('sentState');
-  const sentEmailEl = document.getElementById('sentEmail');
-  const tryAgainBtn = document.getElementById('tryAgainBtn');
-
-  // Se já tem sessão ativa, vai direto para a calculadora
   supabase.auth.getSession().then(({ data: { session } }) => {
     if (session) window.location.href = '/calculadora.html';
   });
 
-  // Erro vindo de redirect (acesso negado)
   if (new URLSearchParams(window.location.search).get('erro') === 'acesso_negado') {
-    errorEl.textContent = 'Seu acesso não está liberado. Adquira o acesso para continuar.';
-    errorEl.classList.add('visible');
+    showEmailError('Seu acesso não está liberado. Adquira o acesso para continuar.');
   }
 
-  form.addEventListener('submit', async (e) => {
+  let emailAtual = '';
+  let timerInterval = null;
+
+  // ── Etapa 1: envio do email ─────────────────────────────────
+  document.getElementById('emailForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = emailInput.value.trim().toLowerCase();
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const btn   = document.getElementById('emailBtn');
+
+    clearEmailError();
 
     if (!email || !email.includes('@')) {
-      errorEl.textContent = 'Digite um email válido.';
-      errorEl.classList.add('visible');
+      showEmailError('Digite um email válido.');
       return;
     }
 
     btn.disabled = true;
     btn.textContent = 'Verificando...';
-    errorEl.classList.remove('visible');
 
-    // 1. Verifica se o email está cadastrado e ativo
+    // Confere se está cadastrado e ativo
     const { data: usuario, error: dbError } = await supabase
       .from('users_autorizados')
       .select('ativo')
@@ -80,53 +66,135 @@ function initLogin() {
       .single();
 
     if (dbError || !usuario) {
-      errorEl.textContent = 'Este email não está cadastrado. Adquira o acesso para continuar.';
-      errorEl.classList.add('visible');
+      showEmailError('Este email não está cadastrado. Adquira o acesso para continuar.');
       btn.disabled = false;
-      btn.textContent = 'Enviar link de acesso';
+      btn.textContent = 'Enviar código';
       return;
     }
 
     if (!usuario.ativo) {
-      errorEl.textContent = 'Sua conta está inativa. Entre em contato com o suporte.';
-      errorEl.classList.add('visible');
+      showEmailError('Sua conta está inativa. Entre em contato com o suporte.');
       btn.disabled = false;
-      btn.textContent = 'Enviar link de acesso';
+      btn.textContent = 'Enviar código';
       return;
     }
 
-    // 2. Email cadastrado e ativo → envia magic link
+    // Envia código OTP
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: window.location.origin + '/calculadora.html',
-        shouldCreateUser: false, // não cria usuário novo, só envia para quem já existe
-      }
+      options: { shouldCreateUser: false }
     });
 
     if (otpError) {
-      errorEl.textContent = 'Erro ao enviar o link. Tente novamente.';
-      errorEl.classList.add('visible');
+      showEmailError('Erro ao enviar o código. Tente novamente.');
       btn.disabled = false;
-      btn.textContent = 'Enviar link de acesso';
+      btn.textContent = 'Enviar código';
       return;
     }
 
-    // 3. Mostra tela de confirmação
-    sentEmailEl.textContent = email;
-    formState.classList.add('hidden');
-    sentState.classList.add('visible');
+    emailAtual = email;
+    document.getElementById('displayEmail').textContent = email;
+    document.getElementById('stepEmail').classList.add('hidden');
+    document.getElementById('stepCodigo').classList.remove('hidden');
+    document.getElementById('otp').value = '';
+    document.getElementById('otp').focus();
+    iniciarTimer();
+
+    btn.disabled = false;
+    btn.textContent = 'Enviar código';
   });
 
-  // Botão "Usar outro email"
-  tryAgainBtn?.addEventListener('click', () => {
-    sentState.classList.remove('visible');
-    formState.classList.remove('hidden');
-    emailInput.value = '';
-    btn.disabled = false;
-    btn.textContent = 'Enviar link de acesso';
-    emailInput.focus();
+  // ── Etapa 2: verificação do código ──────────────────────────
+  document.getElementById('codeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = document.getElementById('otp').value.trim();
+    const btn   = document.getElementById('codeBtn');
+
+    clearCodeError();
+
+    if (!token || token.length < 6) {
+      showCodeError('Digite o código completo de 6 dígitos.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: emailAtual,
+      token,
+      type: 'email',
+    });
+
+    if (error) {
+      showCodeError('Código inválido ou expirado. Solicite um novo código.');
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+      return;
+    }
+
+    btn.textContent = '✅ Acessando...';
+    window.location.href = '/calculadora.html';
   });
+
+  // Só aceita números no campo OTP
+  document.getElementById('otp').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  });
+
+  // Reenviar código
+  document.getElementById('reenviarBtn').addEventListener('click', async () => {
+    clearCodeError();
+    document.getElementById('reenviarBtn').classList.add('hidden');
+    document.getElementById('timerWrap').classList.remove('hidden');
+    await supabase.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: false } });
+    iniciarTimer();
+  });
+
+  // Voltar para email
+  document.getElementById('voltarBtn').addEventListener('click', () => {
+    clearInterval(timerInterval);
+    document.getElementById('stepCodigo').classList.add('hidden');
+    document.getElementById('stepEmail').classList.remove('hidden');
+    document.getElementById('otp').value = '';
+  });
+
+  function iniciarTimer() {
+    clearInterval(timerInterval);
+    let s = 60;
+    document.getElementById('timerCount').textContent = s;
+    document.getElementById('timerWrap').classList.remove('hidden');
+    document.getElementById('reenviarBtn').classList.add('hidden');
+    timerInterval = setInterval(() => {
+      s--;
+      document.getElementById('timerCount').textContent = s;
+      if (s <= 0) {
+        clearInterval(timerInterval);
+        document.getElementById('timerWrap').classList.add('hidden');
+        document.getElementById('reenviarBtn').classList.remove('hidden');
+      }
+    }, 1000);
+  }
+
+  function showEmailError(msg) {
+    const el = document.getElementById('emailError');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function clearEmailError() {
+    document.getElementById('emailError').classList.remove('visible');
+  }
+
+  function showCodeError(msg) {
+    const el = document.getElementById('codeError');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function clearCodeError() {
+    document.getElementById('codeError').classList.remove('visible');
+  }
 }
 
 // ── Logout ────────────────────────────────────────────────────
@@ -140,7 +208,7 @@ function initLogout() {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────
-if (document.getElementById('loginForm')) {
+if (document.getElementById('emailForm')) {
   initLogin();
 } else if (document.getElementById('logoutBtn')) {
   requireAuth();
