@@ -266,7 +266,7 @@
 <script src="contrato.js"></script>
 <script>
   // Mostra email do usuário logado no header
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  _sb.auth.getSession().then(({ data: { session } }) => {
     const el = document.getElementById('headerEmail');
     if (el && session?.user?.email) el.textContent = session.user.email;
   });

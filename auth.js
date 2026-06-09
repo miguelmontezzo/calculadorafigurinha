@@ -1,25 +1,25 @@
-const SUPABASE_URL      = 'https://idurcwbkuyziawvzvvtv.supabase.co';
+const SUPABASE_URL      = 'https://idurcwbkuyziawvzvvtv._sb.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkdXJjd2JrdXl6aWF3dnp2dnR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTM3NzQsImV4cCI6MjA5NjUyOTc3NH0.4WG7_UKat2YvpC5JTa9eTx4buEzqiPz2Jt4IGWjMKCQ';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const _sb = window._sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Proteção da calculadora ───────────────────────────────────
 async function requireAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await _sb.auth.getSession();
 
   if (!session) {
     window.location.href = '/index.html';
     return null;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('users_autorizados')
     .select('ativo')
     .eq('email', session.user.email)
     .single();
 
   if (error || !data || !data.ativo) {
-    await supabase.auth.signOut();
+    await _sb.auth.signOut();
     window.location.href = '/index.html?erro=acesso_negado';
     return null;
   }
@@ -31,7 +31,7 @@ async function requireAuth() {
 function initLogin() {
   if (!document.getElementById('emailForm')) return;
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  _sb.auth.getSession().then(({ data: { session } }) => {
     if (session) window.location.href = '/calculadora.html';
   });
 
@@ -59,7 +59,7 @@ function initLogin() {
     btn.textContent = 'Verificando...';
 
     // Confere se está cadastrado e ativo
-    const { data: usuario, error: dbError } = await supabase
+    const { data: usuario, error: dbError } = await _sb
       .from('users_autorizados')
       .select('ativo')
       .eq('email', email)
@@ -80,7 +80,7 @@ function initLogin() {
     }
 
     // Envia código OTP
-    const { error: otpError } = await supabase.auth.signInWithOtp({
+    const { error: otpError } = await _sb.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false }
     });
@@ -120,7 +120,7 @@ function initLogin() {
     btn.disabled = true;
     btn.textContent = 'Verificando...';
 
-    const { error } = await supabase.auth.verifyOtp({
+    const { error } = await _sb.auth.verifyOtp({
       email: emailAtual,
       token,
       type: 'email',
@@ -147,7 +147,7 @@ function initLogin() {
     clearCodeError();
     document.getElementById('reenviarBtn').classList.add('hidden');
     document.getElementById('timerWrap').classList.remove('hidden');
-    await supabase.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: false } });
+    await _sb.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: false } });
     iniciarTimer();
   });
 
@@ -202,7 +202,7 @@ function initLogout() {
   const btn = document.getElementById('logoutBtn');
   if (!btn) return;
   btn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await _sb.auth.signOut();
     window.location.href = '/index.html';
   });
 }
