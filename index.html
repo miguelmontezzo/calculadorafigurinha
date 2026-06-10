@@ -19,7 +19,6 @@
       --text:        #f0f0f0;
       --text-muted:  #888;
       --danger:      #f87171;
-      --radius:      12px;
     }
 
     body {
@@ -33,6 +32,7 @@
       padding: 1rem;
     }
 
+    /* ── Card de login ── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -51,16 +51,13 @@
     }
 
     .logo-icon {
-      width: 44px;
-      height: 44px;
+      width: 44px; height: 44px;
       background: var(--accent);
       border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1rem;
-      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; font-weight: 800;
       color: var(--accent-text);
+      flex-shrink: 0;
     }
 
     .logo-name { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
@@ -69,81 +66,275 @@
     h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
 
     .subtitle {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 1.75rem;
-      line-height: 1.5;
+      font-size: 0.85rem; color: var(--text-muted);
+      margin-bottom: 1.75rem; line-height: 1.5;
     }
 
     label {
-      display: block;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 0.4rem;
+      display: block; font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted); margin-bottom: 0.4rem;
     }
 
     input[type="email"] {
-      width: 100%;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 1rem;
-      font-family: inherit;
-      padding: 0.75rem 1rem;
-      outline: none;
-      transition: border-color 0.15s;
-      margin-bottom: 1rem;
+      width: 100%; background: var(--bg);
+      border: 1.5px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 1rem; font-family: inherit;
+      padding: 0.75rem 1rem; outline: none;
+      transition: border-color 0.15s; margin-bottom: 1rem;
     }
 
     input[type="email"]:focus { border-color: var(--accent); }
 
     .btn {
-      width: 100%;
-      background: var(--accent);
-      color: var(--accent-text);
-      border: none;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      font-family: inherit;
-      padding: 0.85rem;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
+      width: 100%; background: var(--accent); color: var(--accent-text);
+      border: none; border-radius: 8px; font-size: 0.95rem;
+      font-weight: 700; font-family: inherit; padding: 0.85rem;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s;
     }
 
     .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-    .error-msg {
-      display: none;
-      background: rgba(248,113,113,0.1);
-      border: 1px solid rgba(248,113,113,0.3);
-      border-radius: 8px;
-      color: var(--danger);
-      font-size: 0.83rem;
-      padding: 0.7rem 0.9rem;
-      margin-top: 0.75rem;
-      line-height: 1.5;
-    }
-
-    .error-msg.visible { display: block; }
-
     .footer-note {
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 1.5rem;
+      text-align: center; font-size: 0.75rem;
+      color: var(--text-muted); margin-top: 1.5rem;
     }
 
     .footer-note a { color: var(--accent); text-decoration: none; }
+
+    /* ── Modal: email não cadastrado ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      z-index: 50;
+      align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-overlay.visible { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      width: 100%; max-width: 380px;
+      text-align: center;
+      animation: modalIn 0.25s ease;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.92) translateY(12px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-icon { font-size: 3rem; margin-bottom: 1rem; }
+
+    .modal-title {
+      font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;
+    }
+
+    .modal-desc {
+      font-size: 0.85rem; color: var(--text-muted);
+      line-height: 1.6; margin-bottom: 1.5rem;
+    }
+
+    .modal-email {
+      font-weight: 600; color: var(--accent);
+    }
+
+    .modal-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .btn-accent {
+      background: var(--accent); color: var(--accent-text);
+      border: none; border-radius: 8px; font-size: 0.9rem;
+      font-weight: 700; font-family: inherit; padding: 0.8rem;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+
+    .btn-accent:hover { opacity: 0.88; }
+
+    .btn-ghost {
+      background: transparent; border: 1.5px solid var(--border);
+      border-radius: 8px; color: var(--text-muted);
+      font-size: 0.85rem; font-family: inherit; padding: 0.7rem;
+      cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Tela de carregamento — impressora 3D ── */
+    .loading-screen {
+      display: none;
+      position: fixed; inset: 0;
+      background: var(--bg);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2rem;
+    }
+
+    .loading-screen.visible { display: flex; }
+
+    /* Impressora SVG animada */
+    .printer-wrap {
+      position: relative;
+      width: 160px; height: 160px;
+    }
+
+    /* Estrutura da impressora */
+    .printer-body {
+      position: absolute;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 120px; height: 70px;
+      background: #1e1e2a;
+      border: 2px solid #3a3a50;
+      border-radius: 6px;
+    }
+
+    .printer-frame-left, .printer-frame-right {
+      position: absolute;
+      bottom: 68px;
+      width: 4px; height: 80px;
+      background: #3a3a50;
+      border-radius: 2px;
+    }
+
+    .printer-frame-left  { left: 30px; }
+    .printer-frame-right { right: 30px; }
+
+    .printer-top-bar {
+      position: absolute;
+      bottom: 144px; left: 22px;
+      width: 116px; height: 4px;
+      background: #3a3a50;
+      border-radius: 2px;
+    }
+
+    /* Cabeça de impressão que se move */
+    .printer-head {
+      position: absolute;
+      bottom: 144px;
+      width: 28px; height: 20px;
+      background: var(--accent);
+      border-radius: 4px;
+      transform: translateX(20px);
+      animation: headMove 1.6s ease-in-out infinite;
+    }
+
+    .printer-head::after {
+      content: '';
+      position: absolute;
+      bottom: -8px; left: 50%;
+      transform: translateX(-50%);
+      width: 4px; height: 8px;
+      background: var(--accent);
+      border-radius: 0 0 2px 2px;
+    }
+
+    @keyframes headMove {
+      0%   { transform: translateX(20px); }
+      50%  { transform: translateX(90px); }
+      100% { transform: translateX(20px); }
+    }
+
+    /* Camadas sendo impressas */
+    .print-layers {
+      position: absolute;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 2px;
+    }
+
+    .layer {
+      height: 5px;
+      background: var(--accent);
+      border-radius: 2px;
+      opacity: 0;
+      animation: layerAppear 1.6s ease forwards;
+    }
+
+    .layer:nth-child(1) { animation-delay: 0.0s; }
+    .layer:nth-child(2) { animation-delay: 0.2s; }
+    .layer:nth-child(3) { animation-delay: 0.4s; }
+    .layer:nth-child(4) { animation-delay: 0.6s; }
+    .layer:nth-child(5) { animation-delay: 0.8s; }
+    .layer:nth-child(6) { animation-delay: 1.0s; }
+    .layer:nth-child(7) { animation-delay: 1.2s; }
+
+    @keyframes layerAppear {
+      0%   { opacity: 0; width: 0%; }
+      30%  { opacity: 1; }
+      100% { opacity: 1; width: 100%; }
+    }
+
+    /* Filamento saindo */
+    .filament {
+      position: absolute;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      animation: filamentFlow 1.6s ease-in-out infinite;
+    }
+
+    @keyframes filamentFlow {
+      0%, 100% { height: 0px; opacity: 0; top: 20px; }
+      20%  { height: 12px; opacity: 1; }
+      80%  { height: 12px; opacity: 1; }
+    }
+
+    /* Texto e barra de progresso */
+    .loading-text {
+      text-align: center;
+    }
+
+    .loading-title {
+      font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem;
+    }
+
+    .loading-sub {
+      font-size: 0.8rem; color: var(--text-muted);
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .progress-bar-wrap {
+      width: 200px; height: 4px;
+      background: var(--border); border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      width: 0%;
+      animation: progressFill 2s ease forwards;
+    }
+
+    @keyframes progressFill {
+      0%   { width: 0%; }
+      60%  { width: 75%; }
+      90%  { width: 92%; }
+      100% { width: 100%; }
+    }
   </style>
 </head>
 <body>
 
+<!-- ── Card de login ── -->
 <div class="card">
   <div class="logo">
     <div class="logo-icon">3D</div>
@@ -161,7 +352,6 @@
     <input type="email" id="email" placeholder="voce@email.com"
            autocomplete="email" required>
     <button type="submit" id="loginBtn" class="btn">Entrar</button>
-    <div id="errorMsg" class="error-msg"></div>
   </form>
 
   <p class="footer-note">
@@ -170,7 +360,69 @@
   </p>
 </div>
 
+<!-- ── Modal: email não cadastrado ── -->
+<div id="modalNaoEncontrado" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-icon">🚫</div>
+    <div class="modal-title">Email não encontrado</div>
+    <p class="modal-desc">
+      O email <span id="modalEmail" class="modal-email"></span>
+      não está cadastrado na Calculadora 3D.<br><br>
+      Adquira o acesso para liberar sua conta.
+    </p>
+    <div class="modal-actions">
+      <a href="http://figurinhaai.com.br/" target="_blank">
+        <button class="btn-accent" style="width:100%">🛒 Quero adquirir acesso</button>
+      </a>
+      <button class="btn-ghost" id="modalFechar">Tentar outro email</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tela de carregamento ── -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="printer-wrap">
+    <div class="printer-top-bar"></div>
+    <div class="printer-frame-left"></div>
+    <div class="printer-frame-right"></div>
+    <div class="printer-head">
+      <div class="filament"></div>
+    </div>
+    <div class="printer-body"></div>
+    <div class="print-layers">
+      <div class="layer"></div>
+      <div class="layer"></div>
+      <div class="layer"></div>
+      <div class="layer"></div>
+      <div class="layer"></div>
+      <div class="layer"></div>
+      <div class="layer"></div>
+    </div>
+  </div>
+
+  <div class="loading-text">
+    <div class="loading-title">Preparando sua calculadora</div>
+    <div class="loading-sub">Imprimindo acesso...</div>
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progressFill"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="auth.js"></script>
+<script>
+  // Modal de email não encontrado
+  document.getElementById('modalFechar').addEventListener('click', () => {
+    document.getElementById('modalNaoEncontrado').classList.remove('visible');
+    document.getElementById('email').focus();
+  });
+
+  // Fecha modal clicando fora
+  document.getElementById('modalNaoEncontrado').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('visible');
+  });
+</script>
 </body>
 </html>

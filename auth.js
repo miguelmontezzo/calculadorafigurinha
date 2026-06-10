@@ -72,11 +72,21 @@ function initLogin() {
     }
 
     if (!res.ok) {
-      showError(json.error || 'Erro ao entrar. Tente novamente.');
+      // Email não cadastrado → abre modal
+      if (res.status === 404) {
+        const emailEl = document.getElementById('modalEmail');
+        if (emailEl) emailEl.textContent = email;
+        document.getElementById('modalNaoEncontrado')?.classList.add('visible');
+      } else {
+        showError(json.error || 'Erro ao entrar. Tente novamente.');
+      }
       btn.disabled = false;
       btn.textContent = 'Entrar';
       return;
     }
+
+    // Mostra tela de carregamento (impressora 3D)
+    mostrarLoading();
 
     // Cria sessão no browser com o token gerado pelo servidor
     const { error: verifyError } = await _sb.auth.verifyOtp({
@@ -85,24 +95,41 @@ function initLogin() {
     });
 
     if (verifyError) {
+      esconderLoading();
       showError('Erro ao criar sessão. Tente novamente.');
       btn.disabled = false;
       btn.textContent = 'Entrar';
       return;
     }
 
-    btn.textContent = '✅ Acessando...';
-    window.location.href = '/calculadora.html';
+    // Aguarda a animação terminar (~2s) antes de redirecionar
+    setTimeout(() => {
+      window.location.href = '/calculadora.html';
+    }, 2200);
   });
+
+  function mostrarLoading() {
+    const s = document.getElementById('loadingScreen');
+    if (!s) return;
+    // Reinicia a animação da barra de progresso
+    const fill = document.getElementById('progressFill');
+    if (fill) { fill.style.animation = 'none'; fill.offsetHeight; fill.style.animation = ''; }
+    s.classList.add('visible');
+  }
+
+  function esconderLoading() {
+    document.getElementById('loadingScreen')?.classList.remove('visible');
+  }
 
   function showError(msg) {
     const el = document.getElementById('errorMsg');
+    if (!el) return;
     el.textContent = msg;
     el.classList.add('visible');
   }
 
   function clearError() {
-    document.getElementById('errorMsg').classList.remove('visible');
+    document.getElementById('errorMsg')?.classList.remove('visible');
   }
 }
 
