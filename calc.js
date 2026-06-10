@@ -488,4 +488,57 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   calcular();
+
+  // ── Log de cálculos ───────────────────────────────────────────
+  // Salva automaticamente 3s após o último cálculo (debounce)
+  let calcLogTimer = null;
+
+  function agendarLogCalc() {
+    clearTimeout(calcLogTimer);
+    calcLogTimer = setTimeout(salvarLogCalc, 3000);
+  }
+
+  async function salvarLogCalc() {
+    const c = window._calc;
+    if (!c || c.custoTotal <= 0) return;
+
+    // Só salva se estiver logado
+    if (typeof _sb === 'undefined') return;
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) return;
+
+    const nomeProd = document.getElementById('nomeProduto')?.value || '';
+
+    await _sb.from('calc_logs').insert({
+      email:         session.user.email,
+      user_id:       session.user.id,
+      nome_produto:  nomeProd,
+      dados: {
+        custoTotal:  c.custoTotal,
+        precoBase:   c.precoBase,
+        lucroValor:  c.lucroValor,
+        margem:      c.margem,
+        totalGramas: c.totalGramas,
+        totalHoras:  c.totalHoras,
+        mesas:       (typeof beds !== 'undefined') ? beds.map(b => ({
+          nome:  b.nomePeca,
+          horas: b.horas,
+          gramas: b.gramas,
+          pecas: b.pecas,
+        })) : [],
+      },
+    });
+  }
+
+  // Dispara log após cada cálculo
+  const calcularOriginal = calcular;
+  window.calcular = function() {
+    calcularOriginal();
+    agendarLogCalc();
+  };
+  // Reatribui os listeners para usar a versão com log
+  document.querySelectorAll('input[type=number], input[type=text]').forEach(el => {
+    el.removeEventListener('input', calcularOriginal);
+    el.addEventListener('input', window.calcular);
+  });
 });

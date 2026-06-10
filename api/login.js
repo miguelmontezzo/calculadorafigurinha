@@ -51,6 +51,14 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Erro ao gerar acesso. Tente novamente.' });
   }
 
+  // Salva log de login (sem bloquear a resposta)
+  supabase.from('login_logs').insert({
+    email:   emailLower,
+    user_id: linkData.user?.id || null,
+  }).then(({ error }) => {
+    if (error) console.error('login_log error:', error.message);
+  });
+
   // Retorna o token para o frontend criar a sessão diretamente
   return res.status(200).json({
     token_hash: linkData.properties?.hashed_token,
