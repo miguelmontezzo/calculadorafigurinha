@@ -16,7 +16,7 @@ async function requireAuth() {
     .from('users_autorizados')
     .select('ativo')
     .eq('email', session.user.email)
-    .single();
+    .maybeSingle();
 
   if (error || !data || !data.ativo) {
     await _sb.auth.signOut();
@@ -63,7 +63,7 @@ function initLogin() {
       .from('users_autorizados')
       .select('ativo')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (dbError || !usuario) {
       showEmailError('Este email não está cadastrado. Adquira o acesso para continuar.');
