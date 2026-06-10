@@ -12,13 +12,13 @@ async function requireAuth() {
     return null;
   }
 
-  const { data, error } = await _sb
+  const { data } = await _sb
     .from('users_autorizados')
     .select('ativo')
     .eq('email', session.user.email)
     .maybeSingle();
 
-  if (error || !data || !data.ativo) {
+  if (!data || !data.ativo) {
     await _sb.auth.signOut();
     window.location.href = '/index.html?erro=acesso_negado';
     return null;
@@ -27,107 +27,65 @@ async function requireAuth() {
   return session;
 }
 
-// ── Login com código OTP ──────────────────────────────────────
+// ── Login direto por email ────────────────────────────────────
 function initLogin() {
-  if (!document.getElementById('emailForm')) return;
+  if (!document.getElementById('loginForm')) return;
 
+  // Se já tem sessão ativa, vai direto
   _sb.auth.getSession().then(({ data: { session } }) => {
     if (session) window.location.href = '/calculadora.html';
   });
 
   if (new URLSearchParams(window.location.search).get('erro') === 'acesso_negado') {
-    showEmailError('Seu acesso não está liberado. Adquira o acesso para continuar.');
+    showError('Seu acesso não está liberado. Adquira o acesso para continuar.');
   }
 
-  let emailAtual = '';
-  let timerInterval = null;
-
-  // ── Etapa 1: envio do email ─────────────────────────────────
-  document.getElementById('emailForm').addEventListener('submit', async (e) => {
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value.trim().toLowerCase();
-    const btn   = document.getElementById('emailBtn');
+    const btn   = document.getElementById('loginBtn');
 
-    clearEmailError();
+    clearError();
 
     if (!email || !email.includes('@')) {
-      showEmailError('Digite um email válido.');
+      showError('Digite um email válido.');
       return;
     }
 
     btn.disabled = true;
-    btn.textContent = 'Verificando...';
+    btn.textContent = 'Entrando...';
 
-    // Confere se está cadastrado e ativo
-    const { data: usuario, error: dbError } = await _sb
-      .from('users_autorizados')
-      .select('ativo')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (dbError || !usuario) {
-      showEmailError('Este email não está cadastrado. Adquira o acesso para continuar.');
+    // Chama a API que verifica o email e gera o token
+    let res, json;
+    try {
+      res  = await fetch('/api/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      });
+      json = await res.json();
+    } catch {
+      showError('Erro de conexão. Tente novamente.');
       btn.disabled = false;
-      btn.textContent = 'Enviar código';
+      btn.textContent = 'Entrar';
       return;
     }
 
-    if (!usuario.ativo) {
-      showEmailError('Sua conta está inativa. Entre em contato com o suporte.');
+    if (!res.ok) {
+      showError(json.error || 'Erro ao entrar. Tente novamente.');
       btn.disabled = false;
-      btn.textContent = 'Enviar código';
+      btn.textContent = 'Entrar';
       return;
     }
 
-    // Envia código OTP
-    const { error: otpError } = await _sb.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true }
+    // Cria sessão no browser com o token gerado pelo servidor
+    const { error: verifyError } = await _sb.auth.verifyOtp({
+      token_hash: json.token_hash,
+      type:       'email',
     });
 
-    if (otpError) {
-      showEmailError('Erro ao enviar o código. Tente novamente.');
-      btn.disabled = false;
-      btn.textContent = 'Enviar código';
-      return;
-    }
-
-    emailAtual = email;
-    document.getElementById('displayEmail').textContent = email;
-    document.getElementById('stepEmail').classList.add('hidden');
-    document.getElementById('stepCodigo').classList.remove('hidden');
-    document.getElementById('otp').value = '';
-    document.getElementById('otp').focus();
-    iniciarTimer();
-
-    btn.disabled = false;
-    btn.textContent = 'Enviar código';
-  });
-
-  // ── Etapa 2: verificação do código ──────────────────────────
-  document.getElementById('codeForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const token = document.getElementById('otp').value.trim();
-    const btn   = document.getElementById('codeBtn');
-
-    clearCodeError();
-
-    if (!token || token.length < 6) {
-      showCodeError('Digite o código completo de 6 dígitos.');
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Verificando...';
-
-    const { error } = await _sb.auth.verifyOtp({
-      email: emailAtual,
-      token,
-      type: 'email',
-    });
-
-    if (error) {
-      showCodeError('Código inválido ou expirado. Solicite um novo código.');
+    if (verifyError) {
+      showError('Erro ao criar sessão. Tente novamente.');
       btn.disabled = false;
       btn.textContent = 'Entrar';
       return;
@@ -137,63 +95,14 @@ function initLogin() {
     window.location.href = '/calculadora.html';
   });
 
-  // Só aceita números no campo OTP
-  document.getElementById('otp').addEventListener('input', (e) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
-  });
-
-  // Reenviar código
-  document.getElementById('reenviarBtn').addEventListener('click', async () => {
-    clearCodeError();
-    document.getElementById('reenviarBtn').classList.add('hidden');
-    document.getElementById('timerWrap').classList.remove('hidden');
-    await _sb.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: true } });
-    iniciarTimer();
-  });
-
-  // Voltar para email
-  document.getElementById('voltarBtn').addEventListener('click', () => {
-    clearInterval(timerInterval);
-    document.getElementById('stepCodigo').classList.add('hidden');
-    document.getElementById('stepEmail').classList.remove('hidden');
-    document.getElementById('otp').value = '';
-  });
-
-  function iniciarTimer() {
-    clearInterval(timerInterval);
-    let s = 60;
-    document.getElementById('timerCount').textContent = s;
-    document.getElementById('timerWrap').classList.remove('hidden');
-    document.getElementById('reenviarBtn').classList.add('hidden');
-    timerInterval = setInterval(() => {
-      s--;
-      document.getElementById('timerCount').textContent = s;
-      if (s <= 0) {
-        clearInterval(timerInterval);
-        document.getElementById('timerWrap').classList.add('hidden');
-        document.getElementById('reenviarBtn').classList.remove('hidden');
-      }
-    }, 1000);
-  }
-
-  function showEmailError(msg) {
-    const el = document.getElementById('emailError');
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
     el.textContent = msg;
     el.classList.add('visible');
   }
 
-  function clearEmailError() {
-    document.getElementById('emailError').classList.remove('visible');
-  }
-
-  function showCodeError(msg) {
-    const el = document.getElementById('codeError');
-    el.textContent = msg;
-    el.classList.add('visible');
-  }
-
-  function clearCodeError() {
-    document.getElementById('codeError').classList.remove('visible');
+  function clearError() {
+    document.getElementById('errorMsg').classList.remove('visible');
   }
 }
 
@@ -208,7 +117,7 @@ function initLogout() {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────
-if (document.getElementById('emailForm')) {
+if (document.getElementById('loginForm')) {
   initLogin();
 } else if (document.getElementById('logoutBtn')) {
   requireAuth();

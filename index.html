@@ -11,16 +11,15 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0f0f13;
-      --surface:  #18181f;
-      --border:   #2a2a38;
-      --accent:   #ffd700;
+      --bg:          #0f0f13;
+      --surface:     #18181f;
+      --border:      #2a2a38;
+      --accent:      #ffd700;
       --accent-text: #0f0f13;
-      --text:     #f0f0f0;
-      --text-muted: #888;
-      --danger:   #f87171;
-      --success:  #4ade80;
-      --radius:   12px;
+      --text:        #f0f0f0;
+      --text-muted:  #888;
+      --danger:      #f87171;
+      --radius:      12px;
     }
 
     body {
@@ -34,7 +33,7 @@
       padding: 1rem;
     }
 
-    .login-card {
+    .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 20px;
@@ -59,16 +58,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: 800;
       color: var(--accent-text);
     }
 
-    .logo-text { line-height: 1.2; }
-    .logo-name { font-size: 1.1rem; font-weight: 700; }
+    .logo-name { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
     .logo-sub  { font-size: 0.72rem; color: var(--text-muted); }
 
-    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.35rem; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
 
     .subtitle {
       font-size: 0.85rem;
@@ -87,7 +85,7 @@
       margin-bottom: 0.4rem;
     }
 
-    input {
+    input[type="email"] {
       width: 100%;
       background: var(--bg);
       border: 1.5px solid var(--border);
@@ -101,16 +99,7 @@
       margin-bottom: 1rem;
     }
 
-    input:focus { border-color: var(--accent); }
-
-    /* Campo de código grande */
-    .otp-input {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: 0.4em;
-      text-align: center;
-      padding: 0.65rem 1rem;
-    }
+    input[type="email"]:focus { border-color: var(--accent); }
 
     .btn {
       width: 100%;
@@ -129,22 +118,6 @@
     .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-    .btn-ghost {
-      width: 100%;
-      background: transparent;
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      font-family: inherit;
-      padding: 0.7rem;
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-      margin-top: 0.5rem;
-    }
-
-    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
-
     .error-msg {
       display: none;
       background: rgba(248,113,113,0.1);
@@ -159,37 +132,11 @@
 
     .error-msg.visible { display: block; }
 
-    /* Tela do código */
-    .code-header {
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-
-    .code-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
-    .code-email {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-top: 0.4rem;
-    }
-    .code-email strong { color: var(--accent); }
-
-    .timer {
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-
-    .timer span { color: var(--text); font-weight: 600; }
-
-    .hidden { display: none !important; }
-
     .footer-note {
       text-align: center;
       font-size: 0.75rem;
       color: var(--text-muted);
       margin-top: 1.5rem;
-      line-height: 1.5;
     }
 
     .footer-note a { color: var(--accent); text-decoration: none; }
@@ -197,57 +144,29 @@
 </head>
 <body>
 
-<div class="login-card">
+<div class="card">
   <div class="logo">
     <div class="logo-icon">3D</div>
-    <div class="logo-text">
+    <div>
       <div class="logo-name">Calculadora 3D</div>
       <div class="logo-sub">Precificação profissional</div>
     </div>
   </div>
 
-  <!-- ── Etapa 1: email ── -->
-  <div id="stepEmail">
-    <h1>Acessar</h1>
-    <p class="subtitle">Digite seu email cadastrado e enviaremos um código de verificação.</p>
+  <h1>Acessar</h1>
+  <p class="subtitle">Digite seu email cadastrado para entrar.</p>
 
-    <form id="emailForm" novalidate>
-      <label for="email">Seu email</label>
-      <input type="email" id="email" placeholder="voce@email.com" autocomplete="email" required>
-      <button type="submit" id="emailBtn" class="btn">Enviar código</button>
-      <div id="emailError" class="error-msg"></div>
-    </form>
-  </div>
-
-  <!-- ── Etapa 2: código ── -->
-  <div id="stepCodigo" class="hidden">
-    <div class="code-header">
-      <div class="code-icon">📩</div>
-      <h1>Código enviado</h1>
-      <p class="code-email">
-        Digite o código enviado para<br>
-        <strong id="displayEmail"></strong>
-      </p>
-    </div>
-
-    <form id="codeForm" novalidate>
-      <label for="otp">Código de verificação</label>
-      <input type="text" id="otp" class="otp-input" placeholder="000000"
-             inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-      <button type="submit" id="codeBtn" class="btn">Entrar</button>
-      <div id="codeError" class="error-msg"></div>
-    </form>
-
-    <div class="timer" id="timerWrap">
-      Reenviar código em <span id="timerCount">60</span>s
-    </div>
-
-    <button class="btn-ghost hidden" id="reenviarBtn">Reenviar código</button>
-    <button class="btn-ghost" id="voltarBtn" style="margin-top:0.4rem">Usar outro email</button>
-  </div>
+  <form id="loginForm" novalidate>
+    <label for="email">Seu email</label>
+    <input type="email" id="email" placeholder="voce@email.com"
+           autocomplete="email" required>
+    <button type="submit" id="loginBtn" class="btn">Entrar</button>
+    <div id="errorMsg" class="error-msg"></div>
+  </form>
 
   <p class="footer-note">
-    Ainda não tem acesso? <a href="http://figurinhaai.com.br/" target="_blank">Adquira aqui</a>
+    Ainda não tem acesso?
+    <a href="http://figurinhaai.com.br/" target="_blank">Adquira aqui</a>
   </p>
 </div>
 
