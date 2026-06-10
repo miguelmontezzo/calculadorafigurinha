@@ -68,25 +68,48 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ adicionados: 0, jaExistiam, total: members.length });
   }
 
-  const rows = novos.map(m => ({
-    email:       m.email,
-    nome:        m.nome,
-    data_compra: new Date().toISOString(),
-    ativo:       true,
-  }));
+  // Cria os usuários no Supabase Auth E na tabela users_autorizados
+  let adicionados = 0;
+  const erros = [];
 
-  const { error: insertError } = await supabase
-    .from('users_autorizados')
-    .insert(rows);
+  for (const m of novos) {
+    // 1. Cria (ou ignora se já existe) no Auth — necessário para o OTP funcionar
+    const { error: authError } = await supabase.auth.admin.createUser({
+      email:            m.email,
+      email_confirm:    true,   // marca como confirmado sem precisar de email de confirmação
+      user_metadata:    { nome: m.nome },
+    });
 
-  if (insertError) {
-    console.error('Insert error:', insertError);
-    return res.status(500).json({ error: `Erro ao inserir: ${insertError.message}` });
+    // Ignora erro de "usuário já existe" no Auth — apenas garante que está lá
+    if (authError && !authError.message.includes('already been registered')) {
+      console.error('Auth create error:', m.email, authError.message);
+      erros.push(m.email);
+      continue;
+    }
+
+    // 2. Insere na tabela de autorizados
+    const { error: insertError } = await supabase
+      .from('users_autorizados')
+      .insert({
+        email:       m.email,
+        nome:        m.nome,
+        data_compra: new Date().toISOString(),
+        ativo:       true,
+      });
+
+    if (insertError) {
+      console.error('Insert error:', m.email, insertError.message);
+      erros.push(m.email);
+      continue;
+    }
+
+    adicionados++;
   }
 
   return res.status(200).json({
-    adicionados: novos.length,
+    adicionados,
     jaExistiam,
-    total: members.length,
+    total:  members.length,
+    erros:  erros.length > 0 ? erros : undefined,
   });
 };

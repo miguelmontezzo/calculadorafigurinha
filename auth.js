@@ -82,7 +82,7 @@ function initLogin() {
     // Envia código OTP
     const { error: otpError } = await _sb.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false }
+      options: { shouldCreateUser: true }
     });
 
     if (otpError) {
@@ -147,7 +147,7 @@ function initLogin() {
     clearCodeError();
     document.getElementById('reenviarBtn').classList.add('hidden');
     document.getElementById('timerWrap').classList.remove('hidden');
-    await _sb.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: false } });
+    await _sb.auth.signInWithOtp({ email: emailAtual, options: { shouldCreateUser: true } });
     iniciarTimer();
   });
 
