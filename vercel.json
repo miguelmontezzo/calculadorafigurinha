@@ -15,6 +15,7 @@
   "functions": {
     "api/hotmart-webhook.js": { "maxDuration": 10 },
     "api/import-members.js":  { "maxDuration": 10 },
-    "api/login.js":           { "maxDuration": 10 }
+    "api/login.js":           { "maxDuration": 10 },
+    "api/dashboard.js":       { "maxDuration": 10 }
   }
 }

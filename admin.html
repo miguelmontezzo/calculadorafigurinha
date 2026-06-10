@@ -33,7 +33,7 @@
     }
 
     .container {
-      max-width: 680px;
+      max-width: 960px;
       margin: 0 auto;
     }
 
@@ -276,6 +276,146 @@
 
     /* Hidden */
     .hidden { display: none !important; }
+
+    /* ── Abas do painel ── */
+    .admin-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .admin-tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .admin-tab:hover { color: var(--text); }
+    .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Stats cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+    }
+
+    .stat-card .val  { font-size: 2rem; font-weight: 800; color: var(--accent); }
+    .stat-card .lbl  { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+    /* ── Tabelas do dashboard ── */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 700px) { .dash-grid { grid-template-columns: 1fr; } }
+
+    .dash-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .dash-card-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dash-table-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+
+    .dash-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    .dash-table th {
+      background: var(--bg);
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.5rem 0.85rem;
+      text-align: left;
+      position: sticky; top: 0; z-index: 1;
+    }
+
+    .dash-table td {
+      padding: 0.45rem 0.85rem;
+      border-top: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dash-table tr:hover td { background: rgba(255,215,0,0.03); }
+
+    .empty-dash {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem;
+    }
+
+    .btn-reload {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-family: inherit;
+      padding: 0.3rem 0.65rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-reload:hover { border-color: var(--accent); color: var(--accent); }
+
+    .dash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .dash-section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -306,6 +446,72 @@
   <!-- ── Painel principal (oculto até autenticar) ── -->
   <div id="mainPanel" class="hidden">
 
+    <!-- Abas de navegação -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="csv">📂 Importar CSV</button>
+      <button class="admin-tab" data-tab="dashboard">📊 Dashboard</button>
+    </div>
+
+    <!-- ── ABA: Dashboard ── -->
+    <div id="tabDashboard" class="hidden">
+
+      <div class="dash-header">
+        <span class="dash-section-title">Visão geral</span>
+        <button class="btn-reload" id="reloadDash">↻ Atualizar</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="val" id="sTotalLogins">—</div><div class="lbl">Logins registrados</div></div>
+        <div class="stat-card"><div class="val" id="sUsuariosAtivos">—</div><div class="lbl">Usuários únicos logados</div></div>
+        <div class="stat-card"><div class="val" id="sTotalCalculos">—</div><div class="lbl">Cálculos salvos</div></div>
+        <div class="stat-card"><div class="val" id="sUsuariosCalc">—</div><div class="lbl">Usuários que calcularam</div></div>
+        <div class="stat-card"><div class="val" id="sTotalMembros">—</div><div class="lbl">Membros cadastrados</div></div>
+        <div class="stat-card"><div class="val" id="sMembrosAtivos">—</div><div class="lbl">Membros ativos</div></div>
+      </div>
+
+      <!-- Tabelas -->
+      <div class="dash-grid">
+
+        <!-- Logins recentes -->
+        <div class="dash-card">
+          <div class="dash-card-title">🔐 Logins recentes</div>
+          <div class="dash-table-wrap">
+            <table class="dash-table">
+              <thead><tr><th>Email</th><th>Data/Hora</th></tr></thead>
+              <tbody id="tbLogins"><tr><td colspan="2" class="empty-dash">Carregando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top usuários -->
+        <div class="dash-card">
+          <div class="dash-card-title">🏆 Mais ativos (cálculos)</div>
+          <div class="dash-table-wrap">
+            <table class="dash-table">
+              <thead><tr><th>Email</th><th>Cálculos</th></tr></thead>
+              <tbody id="tbTopUsuarios"><tr><td colspan="2" class="empty-dash">Carregando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Cálculos recentes (full width) -->
+      <div class="dash-card">
+        <div class="dash-card-title">🧮 Cálculos recentes</div>
+        <div class="dash-table-wrap">
+          <table class="dash-table">
+            <thead><tr><th>Email</th><th>Produto</th><th>Custo</th><th>Preço</th><th>Margem</th><th>Data</th></tr></thead>
+            <tbody id="tbCalcs"><tr><td colspan="6" class="empty-dash">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /tabDashboard -->
+
+    <!-- ── ABA: CSV ── -->
+    <div id="tabCsv">
     <div class="card">
       <div class="card-title">📂 Importar membros via CSV</div>
 
@@ -361,6 +567,7 @@
       </div>
     </div>
 
+    </div><!-- /tabCsv -->
   </div><!-- /mainPanel -->
 
 </div><!-- /container -->
@@ -578,6 +785,84 @@
         tr.querySelector('.tag').textContent = 'Já existia';
       }
     });
+  }
+
+  // ── Abas ─────────────────────────────────────────────────────
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      document.getElementById('tabCsv').classList.toggle('hidden', tab !== 'csv');
+      document.getElementById('tabDashboard').classList.toggle('hidden', tab !== 'dashboard');
+      if (tab === 'dashboard' && adminToken) carregarDashboard();
+    });
+  });
+
+  // ── Dashboard ─────────────────────────────────────────────────
+  document.getElementById('reloadDash').addEventListener('click', carregarDashboard);
+
+  async function carregarDashboard() {
+    const res = await fetch(`${API_BASE}/api/dashboard`, {
+      headers: { 'x-admin-token': adminToken }
+    });
+
+    if (!res.ok) return;
+    const d = await res.json();
+
+    // Stats
+    document.getElementById('sTotalLogins').textContent    = d.stats.totalLogins;
+    document.getElementById('sUsuariosAtivos').textContent = d.stats.usuariosAtivos;
+    document.getElementById('sTotalCalculos').textContent  = d.stats.totalCalculos;
+    document.getElementById('sUsuariosCalc').textContent   = d.stats.usuariosCalc;
+    document.getElementById('sTotalMembros').textContent   = d.stats.totalMembros;
+    document.getElementById('sMembrosAtivos').textContent  = d.stats.membrosAtivos;
+
+    // Logins recentes
+    const tbLogins = document.getElementById('tbLogins');
+    tbLogins.innerHTML = d.loginsRecentes.length
+      ? d.loginsRecentes.map(l => `
+          <tr>
+            <td title="${l.email}">${l.email}</td>
+            <td>${formatarData(l.created_at)}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="2" class="empty-dash">Nenhum login ainda</td></tr>';
+
+    // Top usuários
+    const tbTop = document.getElementById('tbTopUsuarios');
+    tbTop.innerHTML = d.topUsuarios.length
+      ? d.topUsuarios.map((u, i) => `
+          <tr>
+            <td title="${u.email}">${i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : ''}${u.email}</td>
+            <td><strong>${u.total}</strong></td>
+          </tr>`).join('')
+      : '<tr><td colspan="2" class="empty-dash">Nenhum cálculo ainda</td></tr>';
+
+    // Cálculos recentes
+    const tbCalcs = document.getElementById('tbCalcs');
+    tbCalcs.innerHTML = d.calcsRecentes.length
+      ? d.calcsRecentes.map(c => `
+          <tr>
+            <td title="${c.email}">${c.email}</td>
+            <td>${c.nome_produto || '—'}</td>
+            <td>${fmtBRL(c.dados?.custoTotal)}</td>
+            <td>${fmtBRL(c.dados?.precoBase)}</td>
+            <td>${c.dados?.margem != null ? c.dados.margem + '%' : '—'}</td>
+            <td>${formatarData(c.created_at)}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="6" class="empty-dash">Nenhum cálculo ainda</td></tr>';
+  }
+
+  function fmtBRL(v) {
+    if (v == null || isNaN(v)) return '—';
+    return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function formatarData(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' })
+      + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
   }
 </script>
 </body>
