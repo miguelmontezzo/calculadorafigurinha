@@ -2,21 +2,23 @@
 
 function abrirModalContrato() {
   // Auto-preenche os campos do contrato com os dados da calculadora
-  const precoUnit = document.getElementById('consigPrecoUnit')?.value || '';
+  const precoUnit = (document.getElementById('consigPrecoUnit')?.value || '').replace(',', '.');
   const qtd       = document.getElementById('consigQtd')?.value       || '';
   const prazo     = document.getElementById('consigPrazo')?.value      || '30';
+  const nomeProd  = document.getElementById('nomeProduto')?.value       || '';
+  if (nomeProd && !document.getElementById('ctrProduto').value) document.getElementById('ctrProduto').value = nomeProd;
 
   if (precoUnit) document.getElementById('ctrPrecoUnit').value = precoUnit;
   if (qtd)       document.getElementById('ctrQuantidade').value = qtd;
   if (prazo)     document.getElementById('ctrPrazo').value = prazo;
 
-  document.getElementById('contratoModal').style.display = 'flex';
+  document.getElementById('contratoModal').classList.add('visible');
   // Gera preview automaticamente se já tiver dados suficientes
   if (precoUnit && qtd) gerarPreview();
 }
 
 function fecharModalContrato() {
-  document.getElementById('contratoModal').style.display = 'none';
+  document.getElementById('contratoModal').classList.remove('visible');
 }
 
 function gerarPreview() {

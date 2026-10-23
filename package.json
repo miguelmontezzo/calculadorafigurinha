@@ -1,7 +1,16 @@
 {
   "name": "calculadora-3d",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "check": "node scripts/check.js",
+    "db:setup": "node scripts/check.js --setup"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0"
+    "@neondatabase/serverless": "1.2.0"
   }
 }

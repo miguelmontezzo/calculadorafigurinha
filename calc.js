@@ -2,38 +2,73 @@
 let modoAtual = 'varejo';
 
 function fmt(v) {
-  if (isNaN(v) || v === null || v === undefined) return 'R$ —';
+  if (v === null || v === undefined || isNaN(v)) return 'R$ —';
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
-function fmtPct(v) { return isNaN(v) ? '—' : v.toFixed(1) + '%'; }
-function badge(ok) {
-  return `<span class="badge ${ok ? 'ok' : 'nok'}">${ok ? '✅ Compensa' : '❌ Não compensa'}</span>`;
+function fmtPct(v) { return isNaN(v) || !isFinite(v) ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%'; }
+function fmtNum(v, d = 1) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: d }); }
+
+// Lê valor de input aceitando vírgula ou ponto
+function parseInputNum(id) {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  return parseFloat(String(el.value).replace(',', '.')) || 0;
+}
+
+function escapeHTML(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Classifica a margem (lucro ÷ preço de venda) em três níveis.
+//   ok   → margem saudável (≥ 20%)
+//   warn → ainda lucra, mas sobra pouco para imprevistos
+//   bad  → prejuízo
+function saudeMargem(pct) {
+  if (pct >= 20) return { nivel: 'ok', texto: 'Compensa' };
+  if (pct > 0)   return { nivel: 'warn', texto: 'Margem apertada' };
+  return { nivel: 'bad', texto: 'Prejuízo' };
+}
+function pill(pct) {
+  const s = saudeMargem(pct);
+  return `<span class="pill ${s.nivel}">${s.texto}</span>`;
+}
+
+const EMPTY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>';
+const emptyState = msg => `<div class="empty">${EMPTY_ICON}<div>${msg}</div></div>`;
+
+function listRow(label, value, sub = '', cls = '', swatch = '') {
+  return `<div class="list-row ${cls}">
+    <div class="lr-main">${swatch ? `<span class="swatch" style="background:${swatch}"></span>` : ''}
+      <div><div class="lr-label">${label}</div>${sub ? `<div class="lr-sub">${sub}</div>` : ''}</div>
+    </div>
+    <div class="lr-value">${value}</div>
+  </div>`;
 }
 
 // ── Seletor de filamentos ─────────────────────────────────────
 function renderFilamentoSelector() {
   const container = document.getElementById('filamentoSelector');
-  if (!container || !window.FILAMENTOS) return;
+  if (!container || typeof FILAMENTOS === 'undefined') return;
   FILAMENTOS.forEach(fil => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'filamento-btn';
+    btn.className = 'chip filamento-btn';
     btn.dataset.id = fil.id;
-    btn.title = `${fil.dica}\nFaixa: R$${fil.precoMin}–${fil.precoMax}/kg`;
-    btn.innerHTML = `<span class="fil-dot" style="background:${fil.cor}"></span>${fil.nome.split('/')[0].trim()}`;
+    btn.title = `${fil.dica}\nFaixa: R$ ${fil.precoMin}–${fil.precoMax}/kg`;
+    btn.innerHTML = `<span class="dot" style="background:${fil.cor}"></span>${fil.nome.split('/')[0].trim()}`;
     btn.addEventListener('click', () => selecionarFilamento(fil.id));
     container.appendChild(btn);
   });
 }
 
-function selecionarFilamento(id) {
+function selecionarFilamento(id, { manterPreco = false } = {}) {
   document.querySelectorAll('.filamento-btn').forEach(b => b.classList.toggle('active', b.dataset.id === id));
   const fil = FILAMENTOS.find(f => f.id === id);
   if (!fil) return;
-  const input = document.getElementById('precoKg');
-  input.value = fil.precoBR;
+  window.filamentoAtual = id;
+  if (!manterPreco) document.getElementById('precoKg').value = String(fil.precoBR).replace('.', ',');
   const hint = document.getElementById('precoKgHint');
-  if (hint) hint.textContent = `Faixa 2026: R$${fil.precoMin}–${fil.precoMax}/kg • ${fil.exemplos}`;
+  if (hint) hint.textContent = `Faixa em 2026: R$ ${fil.precoMin}–${fil.precoMax}/kg · ${fil.exemplos}`;
   const falhas = document.getElementById('falhas');
   if (falhas && !falhas.value) falhas.value = fil.falhasPct;
   calcular();
@@ -48,109 +83,190 @@ function popularEstados() {
     .forEach(([uf, d]) => {
       const opt = document.createElement('option');
       opt.value = uf;
-      opt.textContent = `${d.nome} (${uf})`;
+      opt.textContent = d.nome;
       if (uf === 'SP') opt.selected = true;
       sel.appendChild(opt);
     });
+  const kwhEl = document.getElementById('kwh');
   sel.addEventListener('change', () => {
-    const kwhEl = document.getElementById('kwh');
-    if (!kwhEl.dataset.manual) kwhEl.value = ENERGIA_ESTADOS[sel.value].kwh;
+    if (!kwhEl.dataset.manual) kwhEl.value = String(ENERGIA_ESTADOS[sel.value].kwh).replace('.', ',');
     calcular();
   });
-  document.getElementById('kwh').value = ENERGIA_ESTADOS['SP'].kwh;
-  document.getElementById('kwh').addEventListener('input', e => {
-    e.target.dataset.manual = e.target.value ? '1' : '';
-    calcular();
-  });
+  kwhEl.value = String(ENERGIA_ESTADOS.SP.kwh).replace('.', ',');
+  kwhEl.addEventListener('input', e => { e.target.dataset.manual = e.target.value ? '1' : ''; });
 }
 
-// ── Fee Editor ────────────────────────────────────────────────
-let taxasEditaveis = [];
+// ── Taxas editáveis dos marketplaces ──────────────────────────
+let taxasEditaveis = MARKETPLACES.map(m => ({ ...m, faixas: m.faixas.map(f => ({ ...f })) }));
 
-function renderFeeEditor() {
-  taxasEditaveis = MARKETPLACES.map(m => ({ ...m }));
-  const container = document.getElementById('feeEditor');
-  if (!container) return;
-  container.innerHTML = '';
-  taxasEditaveis.forEach((m, idx) => {
-    const row = document.createElement('div');
-    row.className = 'fee-row';
-    row.innerHTML = `
-      <span title="${m.nome}">${m.nome}</span>
-      <input type="number" value="${m.comissao}" min="0" max="100" step="0.1" data-idx="${idx}" data-field="comissao">
-      <input type="number" value="${m.taxaFixa.toFixed(2)}" min="0" step="0.01" data-idx="${idx}" data-field="taxaFixa">
-    `;
-    container.appendChild(row);
-  });
-  container.addEventListener('input', e => {
-    const { idx, field } = e.target.dataset;
-    if (idx === undefined) return;
-    taxasEditaveis[idx][field] = parseFloat(e.target.value) || 0;
-    calcular();
-  });
+// Arredonda PARA CIMA terminando em ,90 (ex.: 30,29 → 30,90). Nunca reduz o lucro.
+function arredondar90(v) {
+  if (!document.getElementById('arredondar')?.checked || v <= 0) return v;
+  return Math.ceil(v - 0.9 - 1e-9) + 0.9;
 }
 
-// ── Tabs de resultado ─────────────────────────────────────────
+function taxaNaFaixa(f, preco) {
+  const fixa = f.fixaMetadeAbaixoDe && preco < f.fixaMetadeAbaixoDe ? preco / 2 : f.taxaFixa;
+  return preco * (f.comissao / 100) + fixa;
+}
+function faixaDoPreco(mp, preco) {
+  return mp.faixas.find(f => preco < f.ate) || mp.faixas[mp.faixas.length - 1];
+}
+
+// Menor preço de anúncio em que você recebe pelo menos `alvo` depois da taxa e do imposto.
+// Testa cada faixa: resolve P = (alvo + fixa) / (1 − comissão − imposto) e vê se cai dentro dela.
+function precoMarketplace(mp, alvo, impostoPct) {
+  let melhor = Infinity;
+  let inicio = 0;
+  for (const f of mp.faixas) {
+    const fixa = f.fixaMetadeAbaixoDe ? Math.max(f.taxaFixa, 0) : f.taxaFixa;
+    const div = 1 - f.comissao / 100 - impostoPct / 100;
+    if (div > 0) {
+      let p = (alvo + fixa) / div;
+      if (p < inicio) p = inicio;          // degrau: o início da faixa já basta
+      if (p < f.ate) melhor = Math.min(melhor, p);
+    }
+    inicio = f.ate;
+  }
+  const preco = arredondar90(melhor);
+  const faixa = faixaDoPreco(mp, preco);
+  const taxa = taxaNaFaixa(faixa, preco);
+  return { preco, taxa, faixa };
+}
+
+// ── Abas de resultado ─────────────────────────────────────────
 function initResultTabs() {
   document.querySelectorAll('.results-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.results-tab').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.rtab-panel').forEach(p => p.style.display = 'none');
-      btn.classList.add('active');
-      document.getElementById(`rtab-${btn.dataset.rtab}`).style.display = 'block';
+      document.querySelectorAll('.results-tab').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.rtab-panel').forEach(p => { p.hidden = p.id !== `rtab-${btn.dataset.rtab}`; });
     });
   });
+}
+
+function abrirAba(nome) {
+  document.querySelector(`.results-tab[data-rtab="${nome}"]`)?.click();
 }
 
 // ── Modo de venda ─────────────────────────────────────────────
+function setModo(modo) {
+  modoAtual = modo;
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === modo));
+  document.getElementById('mode-atacado').hidden = modo !== 'atacado';
+  document.getElementById('mode-consignado').hidden = modo !== 'consignado';
+  calcular();
+}
 function initModos() {
-  document.querySelectorAll('.mode-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      modoAtual = btn.dataset.mode;
-      document.getElementById('mode-atacado').style.display    = modoAtual === 'atacado'    ? 'block' : 'none';
-      document.getElementById('mode-consignado').style.display = modoAtual === 'consignado' ? 'block' : 'none';
-      calcular();
-    });
-  });
+  document.querySelectorAll('.mode-tab').forEach(btn => btn.addEventListener('click', () => setModo(btn.dataset.mode)));
 }
 
-// ── Modo Iniciante ────────────────────────────────────────────
-function initModoIniciante() {
-  document.getElementById('modoInicianteBtn')?.addEventListener('click', () => {
-    selecionarFilamento('pla_basico');
-    if (!document.getElementById('embalagem').value) document.getElementById('embalagem').value = 3.50;
-    if (!document.getElementById('laborHours').value) document.getElementById('laborHours').value = 0.5;
-    if (!document.getElementById('laborRate').value) document.getElementById('laborRate').value = 20;
-    document.getElementById('falhas').value = 10;
-    document.getElementById('margem').value = 40;
+// ── Slider de margem sincronizado com o campo ─────────────────
+function syncRange() {
+  const range = document.getElementById('margemRange');
+  const v = parseInputNum('margem');
+  range.value = Math.min(200, v);
+  range.style.setProperty('--pct', `${(Math.min(200, v) / 200) * 100}%`);
+  atualizarPresets();
+}
 
-    const btn = document.getElementById('modoInicianteBtn');
-    btn.textContent = '✅ Valores de mercado aplicados!';
-    btn.style.color = 'var(--success)';
-    btn.style.borderColor = 'var(--success)';
-    setTimeout(() => {
-      btn.textContent = '✨ Preencher com valores de mercado';
-      btn.style.color = '';
-      btn.style.borderColor = '';
-    }, 2500);
+// ── Faixas de lucro sugeridas para o mercado 3D ───────────────
+function renderPresets() {
+  const wrap = document.getElementById('margemPresets');
+  if (!wrap) return;
+  wrap.innerHTML = MARGENS_SUGERIDAS.map(m => `
+    <button type="button" class="preset" data-valor="${m.valor}" title="${escapeHTML(m.dica)}">
+      <strong>${m.nome}${m.id === 'recomendado' ? '<span class="badge-rec">★</span>' : ''}</strong>
+      <span>${m.valor}% sobre o custo</span>
+    </button>`).join('');
+  wrap.addEventListener('click', e => {
+    const btn = e.target.closest('.preset');
+    if (!btn) return;
+    document.getElementById('margem').value = btn.dataset.valor;
+    syncRange();
     calcular();
   });
+  atualizarPresets();
+}
+function atualizarPresets() {
+  const v = parseInputNum('margem');
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', Number(b.dataset.valor) === v));
+  const hint = document.getElementById('margemHint');
+  if (!hint) return;
+  const sobrePreco = v > 0 ? (v / (100 + v)) * 100 : 0;
+  const ref = MARGENS_SUGERIDAS.find(m => m.valor === v);
+  hint.textContent = ref
+    ? `${ref.dica}`
+    : `≈ ${fmtPct(sobrePreco)} do preço de venda fica de lucro.${v < 45 ? ' Abaixo do praticado no mercado 3D (45% a 100%).' : ''}`;
+}
+function initMargem() {
+  const range = document.getElementById('margemRange');
+  const input = document.getElementById('margem');
+  range.addEventListener('input', () => {
+    input.value = range.value;
+    range.style.setProperty('--pct', `${(range.value / 200) * 100}%`);
+    calcular();
+  });
+  input.addEventListener('input', syncRange);
+  if (!input.value) input.value = 70;
+  renderPresets();
+  syncRange();
 }
 
-// ── Tooltips ──────────────────────────────────────────────────
+// ── Valores típicos ───────────────────────────────────────────
+function aplicarValoresTipicos() {
+  selecionarFilamento('pla_basico');
+  const set = (id, v) => { const el = document.getElementById(id); if (!el.value) el.value = v; };
+  set('embalagem', '3,50');
+  set('laborHours', '0,5');
+  set('laborRate', '20');
+  document.getElementById('falhas').value = 10;
+  document.getElementById('margem').value = 70;
+  syncRange();
+  if (typeof beds !== 'undefined' && beds[0] && !beds[0].gramas && !beds[0].horas) {
+    beds[0].gramas = 50; beds[0].horas = 2.5;
+    renderBeds();
+  }
+  calcular();
+  document.getElementById('starterBanner').hidden = true;
+  toast('Valores típicos aplicados. Ajuste para a sua realidade.');
+}
+
+// ── Tooltips (funcionam com toque e com mouse) ────────────────
 function initTooltips() {
-  document.querySelectorAll('.tip-icon').forEach(icon => {
-    icon.addEventListener('mouseenter', e => {
-      let tt = document.getElementById('_tt');
-      if (!tt) { tt = document.createElement('div'); tt.id = '_tt'; tt.className = 'tooltip-box'; document.body.appendChild(tt); }
-      tt.textContent = icon.dataset.tip;
-      const r = icon.getBoundingClientRect();
-      tt.style.cssText = `display:block;top:${r.bottom + 8 + window.scrollY}px;left:${Math.min(r.left, window.innerWidth - 265)}px`;
-    });
-    icon.addEventListener('mouseleave', () => { const tt = document.getElementById('_tt'); if (tt) tt.style.display = 'none'; });
+  let aberto = null;
+  const fechar = () => {
+    document.getElementById('_tt')?.remove();
+    aberto?.setAttribute('aria-expanded', 'false');
+    aberto = null;
+  };
+  const abrir = icon => {
+    fechar();
+    const tt = document.createElement('div');
+    tt.id = '_tt';
+    tt.className = 'tooltip';
+    tt.textContent = icon.dataset.tip;
+    document.body.appendChild(tt);
+    const r = icon.getBoundingClientRect();
+    const left = Math.max(12, Math.min(r.left - 12, window.innerWidth - tt.offsetWidth - 12));
+    tt.style.top = `${r.bottom + 8 + window.scrollY}px`;
+    tt.style.left = `${left + window.scrollX}px`;
+    icon.setAttribute('aria-expanded', 'true');
+    aberto = icon;
+  };
+  document.addEventListener('click', e => {
+    const icon = e.target.closest('.tip');
+    if (icon) { e.preventDefault(); aberto === icon ? fechar() : abrir(icon); return; }
+    if (!e.target.closest('.tooltip')) fechar();
   });
+  document.addEventListener('mouseover', e => {
+    const icon = e.target.closest('.tip');
+    if (icon && matchMedia('(hover: hover)').matches && aberto !== icon) abrir(icon);
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.tip') && matchMedia('(hover: hover)').matches) fechar();
+  });
+  window.addEventListener('scroll', fechar, { passive: true });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -164,381 +280,364 @@ function calcular() {
   const laborRate = parseInputNum('laborRate');
   const falhas    = parseInputNum('falhas');
   const margem    = parseInputNum('margem');
+  const imposto   = Math.min(50, parseInputNum('imposto'));
 
   // Dados das mesas (cada mesa tem sua própria impressora)
   const { totalGramas, totalHoras, totalPurgeGramas, totalEnergia, totalMaquina, bedsDetalhe } = getBedTotals();
 
   // ── Componentes de custo ──────────────────────────────
-  // Filamento: apenas o material que vira produto
-  const custoFilamento = (totalGramas / 1000) * precoKg;
-
-  // Purga: material desperdiçado na troca de cor (multicolor)
-  const custoPurga = (totalPurgeGramas / 1000) * precoKg;
-
-  // Energia: calculada por mesa com o watt da impressora daquela mesa
-  const custoEnergia = totalEnergia * kwh;
-
-  // Hora-máquina: depreciação + manutenção por impressora de cada mesa
-  // (totalMaquina já vem calculado por cama em beds.js)
-  const custoMaquina = totalMaquina;
-
-  // Mão de obra: seu tempo de trabalho (não a hora de impressão)
-  const custoMaoDeObra = laborH * laborRate;
-
-  // Embalagem: custo fixo por peça
+  const custoFilamento = (totalGramas / 1000) * precoKg;      // material que vira produto
+  const custoPurga     = (totalPurgeGramas / 1000) * precoKg; // desperdício na troca de cor
+  const custoEnergia   = totalEnergia * kwh;                  // kWh por mesa × tarifa
+  const custoMaquina   = totalMaquina;                        // depreciação + manutenção
+  const custoMaoDeObra = laborH * laborRate;                  // seu tempo de trabalho
   const custoEmbalagem = embalagem;
 
   // ── Subtotal e falhas ─────────────────────────────────
   const subtotal = custoFilamento + custoPurga + custoEnergia + custoMaquina + custoMaoDeObra + custoEmbalagem;
-
-  // Falhas: quando uma peça falha você perde TODO o custo dela.
-  // Fórmula: se 10% falham, para cada 10 peças tentadas, 1 falha.
-  // Então o custo real por peça boa = custo / (1 - falha%)
-  // Equivalente a adicionar custo × falha% ao subtotal.
+  // Se 10% falham, o custo das peças perdidas é distribuído entre as boas
   const custoFalha = subtotal * (falhas / 100);
   const custoTotal = subtotal + custoFalha;
 
-  // ── Preço base ────────────────────────────────────────
-  // Markup sobre custo: base = custo × (1 + margem%)
-  const lucroValor = custoTotal * (margem / 100);
-  const precoBase  = custoTotal + lucroValor;
+  // ── Preço base: markup sobre o custo + imposto por fora ──
+  // alvo = quanto você precisa receber limpo (custo + lucro desejado)
+  const alvo       = custoTotal * (1 + margem / 100);
+  const precoBase  = arredondar90(alvo / (1 - imposto / 100));
+  const impostoValor = precoBase * (imposto / 100);
+  const lucroValor = precoBase - impostoValor - custoTotal;
 
-  // ── Guardar para outras funções ───────────────────────
-  window._calc = { custoFilamento, custoPurga, custoEnergia, custoMaquina, custoMaoDeObra, custoEmbalagem, subtotal, custoFalha, custoTotal, lucroValor, precoBase, falhas, margem, precoKg, kwh, laborH, laborRate, totalGramas, totalHoras, totalPurgeGramas, totalEnergia, bedsDetalhe };
+  window._calc = { custoFilamento, custoPurga, custoEnergia, custoMaquina, custoMaoDeObra, custoEmbalagem, subtotal, custoFalha, custoTotal, lucroValor, precoBase, alvo, imposto, impostoValor, falhas, margem, precoKg, kwh, laborH, laborRate, totalGramas, totalHoras, totalPurgeGramas, totalEnergia, bedsDetalhe };
 
+  renderHero();
   renderCustos();
   renderVarejoLocal();
   renderMarketplace();
   if (typeof atualizarCiclo === 'function') atualizarCiclo();
+  if (typeof atualizarInfoItem === 'function') atualizarInfoItem();
+  agendarLogCalc();
+}
+
+// ── Destaque: preço, custo, lucro e composição ────────────────
+const FATIAS = [
+  ['custoFilamento', 'Filamento', '--c-filamento'],
+  ['custoPurga', 'Purga', '--c-purga'],
+  ['custoEnergia', 'Energia', '--c-energia'],
+  ['custoMaquina', 'Máquina', '--c-maquina'],
+  ['custoMaoDeObra', 'Mão de obra', '--c-mao'],
+  ['custoEmbalagem', 'Embalagem', '--c-embalagem'],
+  ['custoFalha', 'Falhas', '--c-falhas'],
+];
+
+// Lucro real de um preço: tira o imposto e o custo
+function lucroDe(c, preco) { return preco * (1 - c.imposto / 100) - c.custoTotal; }
+
+function precoDoModo(c) {
+  if (modoAtual === 'atacado') {
+    const desc = parseInputNum('atacadoDesconto');
+    return { label: `Preço no atacado (−${fmtNum(desc)}%)`, preco: arredondar90(c.precoBase * (1 - desc / 100)) };
+  }
+  if (modoAtual === 'consignado') {
+    const p = parseInputNum('consigPrecoUnit');
+    if (p > 0) return { label: 'Você recebe por peça', preco: p };
+  }
+  return { label: 'Preço sugerido', preco: c.precoBase };
+}
+
+function renderHero() {
+  const c = window._calc;
+  const temDados = c.custoTotal > 0;
+  const { label, preco } = precoDoModo(c);
+  const lucro = lucroDe(c, preco);
+  const pct = preco > 0 ? (lucro / preco) * 100 : 0;
+
+  document.getElementById('heroLabel').textContent = label;
+  const priceEl = document.getElementById('heroPrice');
+  priceEl.textContent = fmt(temDados ? preco : 0);
+  priceEl.classList.toggle('empty', !temDados);
+  document.getElementById('heroPill').innerHTML = temDados ? pill(pct) : '';
+  document.getElementById('heroSub').textContent = temDados
+    ? `${fmtNum(c.margem)}% de lucro sobre o custo${c.imposto > 0 ? ` + ${fmtNum(c.imposto)}% de imposto` : ''}${modoAtual === 'varejo' ? '' : ` · varejo ${fmt(c.precoBase)}`}`
+    : 'Preencha o peso e as horas da impressão para começar.';
+  document.getElementById('heroCusto').textContent = temDados ? fmt(c.custoTotal) : '—';
+  document.getElementById('heroLucro').textContent = temDados ? fmt(lucro) : '—';
+  document.getElementById('heroMargem').textContent = temDados ? fmtPct(pct) : '—';
+
+  const fatias = FATIAS.filter(([k]) => c[k] > 0);
+  document.getElementById('costBar').innerHTML = temDados
+    ? fatias.map(([k, nome, cor]) => `<i style="flex-grow:${c[k]};background:var(${cor})" title="${nome}: ${fmt(c[k])}"></i>`).join('')
+    : '';
+  document.getElementById('costLegend').innerHTML = temDados
+    ? fatias.map(([k, nome, cor]) => `<span><span class="swatch" style="background:var(${cor})"></span>${nome} ${fmtPct((c[k] / c.custoTotal) * 100)}</span>`).join('')
+    : '';
+
+  document.getElementById('dockLabel').textContent = label;
+  document.getElementById('dockPrice').textContent = fmt(temDados ? preco : 0);
+  document.getElementById('priceDock').classList.toggle('on', temDados);
 }
 
 // ── Aba: Custos discriminados ─────────────────────────────────
 function renderCustos() {
   const el = document.getElementById('rtab-custos');
-  if (!el) return;
   const c = window._calc;
-  if (!c) return;
+  if (!el || !c) return;
+  if (c.custoTotal <= 0) { el.innerHTML = emptyState('Informe o peso e as horas de cada mesa.'); return; }
 
+  const kg = fmt(c.precoKg).replace('R$', 'R$ ').replace('  ', ' ');
   const rows = [
-    ['🧵 Filamento', c.custoFilamento, `${c.totalGramas.toFixed(0)}g × R$${parseFloat(document.getElementById('precoKg').value||0).toFixed(2)}/kg`],
-    c.custoPurga > 0 ? ['🎨 Purga (multicolor)', c.custoPurga, `${c.totalPurgeGramas.toFixed(1)}g × R$${parseFloat(document.getElementById('precoKg').value||0).toFixed(2)}/kg`] : null,
-    ['⚡ Energia elétrica', c.custoEnergia, gerarDetalheEnergia()],
-    c.custoMaquina > 0 ? ['🖨️ Hora-máquina', c.custoMaquina, gerarDetalheMaquina()] : null,
-    c.custoMaoDeObra > 0 ? ['👤 Mão de obra', c.custoMaoDeObra, `${c.laborH}h × R$${c.laborRate}/h`] : null,
-    c.custoEmbalagem > 0 ? ['📦 Embalagem', c.custoEmbalagem, 'custo por peça'] : null,
+    ['Filamento', c.custoFilamento, `${fmtNum(c.totalGramas)} g × ${kg}/kg`, '--c-filamento'],
+    c.custoPurga > 0 ? ['Purga (multicolor)', c.custoPurga, `${fmtNum(c.totalPurgeGramas)} g desperdiçados`, '--c-purga'] : null,
+    ['Energia', c.custoEnergia, `${fmtNum(c.totalEnergia, 3)} kWh × R$ ${fmtNum(c.kwh, 2)}`, '--c-energia'],
+    c.custoMaquina > 0 ? ['Desgaste da máquina', c.custoMaquina, 'Depreciação + manutenção por hora', '--c-maquina'] : null,
+    c.custoMaoDeObra > 0 ? ['Mão de obra', c.custoMaoDeObra, `${fmtNum(c.laborH)} h × ${fmt(c.laborRate)}/h`, '--c-mao'] : null,
+    c.custoEmbalagem > 0 ? ['Embalagem', c.custoEmbalagem, 'Por peça', '--c-embalagem'] : null,
+    c.custoFalha > 0 ? [`Falhas (${fmtNum(c.falhas)}%)`, c.custoFalha, 'Prejuízo das que dão errado, dividido nas boas', '--c-falhas'] : null,
   ].filter(Boolean);
 
   el.innerHTML = `
-    <table class="cost-table">
-      <thead><tr><th>Item</th><th>Valor</th><th>Detalhamento</th></tr></thead>
-      <tbody>
-        ${rows.map(([item, val, det]) => `<tr><td>${item}</td><td class="price">${fmt(val)}</td><td class="detail">${det}</td></tr>`).join('')}
-        <tr class="subtotal-row"><td><strong>Subtotal</strong></td><td class="price"><strong>${fmt(c.subtotal)}</strong></td><td></td></tr>
-        ${c.falhas > 0 ? `<tr><td>⚠️ Falhas (${c.falhas}%)</td><td class="price">+ ${fmt(c.custoFalha)}</td><td class="detail">Custo das peças que falham distribuído nas boas</td></tr>` : ''}
-      </tbody>
-    </table>
-    <div class="cost-totals">
-      <div class="cost-total-item"><span>Custo total de produção (por peça)</span><strong>${fmt(c.custoTotal)}</strong></div>
-      <div class="cost-total-item accent"><span>Preço base com ${c.margem}% de lucro sobre custo</span><strong>${fmt(c.precoBase)}</strong></div>
-      <div class="cost-total-item muted"><span>Lucro por peça</span><strong>${fmt(c.lucroValor)}</strong></div>
-      ${c.totalGramas > 0 ? `<div class="cost-total-item muted"><span>Custo por grama (material final)</span><strong>R$ ${(c.custoTotal/c.totalGramas).toFixed(4)}/g</strong></div>` : ''}
-      ${c.totalHoras > 0 ? `<div class="cost-total-item muted"><span>Custo total por hora de impressão</span><strong>R$ ${(c.custoTotal/c.totalHoras).toFixed(2)}/h</strong></div>` : ''}
+    <div class="list">
+      ${rows.map(([l, v, s, cor]) => listRow(l, fmt(v), s, '', `var(${cor})`)).join('')}
+      ${listRow('Custo por peça', fmt(c.custoTotal), '', 'total')}
+      ${c.imposto > 0 ? listRow(`Imposto (${fmtNum(c.imposto)}%)`, fmt(c.impostoValor), 'Sobre o preço de venda') : ''}
+      ${listRow(`Preço com ${fmtNum(c.margem)}% de lucro`, fmt(c.precoBase), document.getElementById('arredondar')?.checked ? 'Arredondado para ,90' : '', 'strong-accent')}
+    </div>
+    <div class="note">
+      ${c.totalGramas > 0 ? `Custo por grama: <strong>R$ ${(c.custoTotal / c.totalGramas).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong>` : ''}
+      ${c.totalHoras > 0 ? ` · por hora de impressão: <strong>${fmt(c.custoTotal / c.totalHoras)}</strong>` : ''}
     </div>
     ${gerarResumoMesas()}
   `;
-}
-
-function gerarDetalheEnergia() {
-  const c = window._calc;
-  if (!c || !c.bedsDetalhe.length) return '—';
-  return c.bedsDetalhe
-    .filter(b => b.horas > 0 && b.watts > 0)
-    .map(b => `Mesa #${b.idx+1}: ${b.watts}W × ${b.horas}h = ${((b.watts/1000)*b.horas).toFixed(3)} kWh`)
-    .join(' | ') + ` × R$${parseFloat(document.getElementById('kwh').value||0).toFixed(2)}/kWh`;
-}
-
-function gerarDetalheMaquina() {
-  const c = window._calc;
-  if (!c || !c.bedsDetalhe.length) return '—';
-  return c.bedsDetalhe
-    .filter(b => b.horas > 0 && b.custoHora > 0)
-    .map(b => `Mesa #${b.idx+1}: R$${b.custoHora.toFixed(3)}/h × ${b.horas}h`)
-    .join(' | ');
 }
 
 function gerarResumoMesas() {
   const c = window._calc;
   if (!c || c.bedsDetalhe.length <= 1) return '';
   return `
-    <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border)">
-      <div class="card-title" style="margin-bottom:0.5rem">🛏️ Detalhe por mesa (custo já dividido por peças)</div>
-      <table class="cost-table">
-        <thead><tr><th>Mesa</th><th>Impressora</th><th>Lote</th><th>Peças</th><th>g/peça</th><th>h/peça</th><th>Custo lote</th></tr></thead>
+    <div class="sub-card">
+      <span class="eyebrow">Por mesa (já dividido pelas peças)</span>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Mesa</th><th class="num">Peças</th><th class="num">g/peça</th><th class="num">h/peça</th><th class="num">Custo do lote</th></tr></thead>
         <tbody>
           ${c.bedsDetalhe.map(b => {
-            const kwh = parseFloat(document.getElementById('kwh')?.value || 0);
-            const custoLote = ((b.watts/1000)*b.horas*kwh) + (b.horas*b.custoHora);
-            return `
-              <tr>
-                <td>#${b.idx+1}</td>
-                <td class="detail">${b.impNome}</td>
-                <td>${b.gramas}g / ${b.horas}h</td>
-                <td style="font-weight:700;color:var(--accent)">${b.pecas}</td>
-                <td>${b.gramasPorPeca.toFixed(1)}g</td>
-                <td>${b.horasPorPeca.toFixed(2)}h</td>
-                <td>${fmt(custoLote)}</td>
-              </tr>`;
+            const custoLote = ((b.watts / 1000) * b.horas * c.kwh) + (b.horas * b.custoHora) + (b.gramas / 1000) * c.precoKg;
+            const nome = beds[b.idx]?.nomePeca || `Mesa ${b.idx + 1}`;
+            return `<tr>
+              <td class="truncate" title="${escapeHTML(b.impNome)}">${escapeHTML(nome)}</td>
+              <td class="num">${b.pecas}</td>
+              <td class="num">${fmtNum(b.gramasPorPeca)}</td>
+              <td class="num">${fmtNum(b.horasPorPeca, 2)}</td>
+              <td class="num">${fmt(custoLote)}</td>
+            </tr>`;
           }).join('')}
         </tbody>
-      </table>
-    </div>
-  `;
+      </table></div>
+    </div>`;
 }
 
-// ── Aba: Varejo Local ─────────────────────────────────────────
+// ── Aba: Venda direta / atacado / consignado ──────────────────
 function renderVarejoLocal() {
   const el = document.getElementById('rtab-varejo-local');
-  if (!el) return;
   const c = window._calc;
-  if (!c || c.precoBase <= 0) { el.innerHTML = '<div class="empty-state"><div class="icon">🏪</div>Preencha os campos para ver o resultado</div>'; return; }
+  if (!el) return;
+  if (!c || c.precoBase <= 0) { el.innerHTML = emptyState('Preencha os campos para ver os preços de venda.'); return; }
 
-  const lucro    = c.precoBase - c.custoTotal;
-  // Lucro % calculado sobre o preço de venda (métrica padrão de varejo)
-  const lucroPct = c.precoBase > 0 ? (lucro / c.precoBase) * 100 : 0;
-  const compensa = lucroPct >= 20;
+  const lucro = lucroDe(c, c.precoBase);
+  const pct = c.precoBase > 0 ? (lucro / c.precoBase) * 100 : 0;
 
-  let extraHTML = '';
-  if (modoAtual === 'atacado') extraHTML = renderAtacadoHTML();
-  if (modoAtual === 'consignado') extraHTML = renderConsignadoHTML();
+  let extra = '';
+  if (modoAtual === 'atacado') extra = renderAtacadoHTML();
+  if (modoAtual === 'consignado') extra = renderConsignadoHTML();
 
   el.innerHTML = `
-    <div class="varejo-local-card">
-      <div class="vl-row">
-        <div class="vl-item"><label>Custo de produção</label><div class="vl-value muted">${fmt(c.custoTotal)}</div></div>
-        <div class="vl-item"><label>Preço de venda sugerido</label><div class="vl-value accent">${fmt(c.precoBase)}</div></div>
-        <div class="vl-item"><label>Lucro por peça</label><div class="vl-value">${fmt(lucro)}</div></div>
-        <div class="vl-item"><label>Margem sobre venda</label><div class="vl-value">${fmtPct(lucroPct)}</div></div>
-      </div>
-      <div class="vl-badge">${badge(compensa)}</div>
-      <div class="vl-breakdown">
-        <p>💡 <strong>Venda local, WhatsApp, Instagram, site próprio</strong> — sem taxa de plataforma.</p>
-        <p>Você configurou <strong>${c.margem}% de lucro sobre o custo</strong>, que resulta em <strong>${fmtPct(lucroPct)} de margem</strong> sobre o preço final.</p>
-      </div>
+    <div class="list">
+      ${listRow('Venda direta', `${pill(pct)}`, 'WhatsApp, Instagram, feira, site próprio — sem taxas')}
+      ${listRow('Preço de venda', fmt(c.precoBase), '', 'strong-accent')}
+      ${listRow('Custo', fmt(c.custoTotal))}
+      ${c.imposto > 0 ? listRow('Imposto', fmt(c.impostoValor)) : ''}
+      ${listRow('Lucro por peça', fmt(lucro))}
+      ${listRow('Margem sobre a venda', fmtPct(pct), `${fmtNum(c.margem)}% sobre o custo = ${fmtPct(pct)} do preço final`)}
     </div>
-    ${extraHTML}
+    ${extra}
   `;
 }
 
 function renderAtacadoHTML() {
   const c = window._calc;
-  const qtd      = parseFloat(document.getElementById('atacadoQtd')?.value) || 10;
-  const desconto = parseFloat(document.getElementById('atacadoDesconto')?.value) || 0;
-  const precoAt  = c.precoBase * (1 - desconto / 100);
-  const lucro    = precoAt - c.custoTotal;
-  const lucroPct = precoAt > 0 ? (lucro / precoAt) * 100 : 0;
-  const compensa = lucroPct >= 20;
+  const qtd = parseInputNum('atacadoQtd') || 10;
+  const desconto = parseInputNum('atacadoDesconto');
+  const precoAt = arredondar90(c.precoBase * (1 - desconto / 100));
+  const lucro = lucroDe(c, precoAt);
+  const pct = precoAt > 0 ? (lucro / precoAt) * 100 : 0;
   return `
-    <div class="atacado-result-card">
-      <div class="card-title">📦 Atacado — ${desconto}% de desconto</div>
-      <div class="vl-row">
-        <div class="vl-item"><label>Preço varejo</label><div class="vl-value muted">${fmt(c.precoBase)}</div></div>
-        <div class="vl-item"><label>Preço atacado</label><div class="vl-value accent">${fmt(precoAt)}</div></div>
-        <div class="vl-item"><label>Lucro unitário</label><div class="vl-value">${fmt(lucro)}</div></div>
-        <div class="vl-item"><label>Lucro pedido (${qtd} un.)</label><div class="vl-value">${fmt(lucro * qtd)}</div></div>
+    <div class="sub-card">
+      <span class="eyebrow">Atacado · ${fmtNum(desconto)}% de desconto</span>
+      <div class="list">
+        ${listRow('Preço no atacado', fmt(precoAt), `Varejo ${fmt(c.precoBase)}`, 'strong-accent')}
+        ${listRow('Lucro por peça', fmt(lucro), '', '')}
+        ${listRow(`Lucro no pedido de ${qtd} un.`, fmt(lucro * qtd))}
+        ${listRow('Situação', pill(pct))}
       </div>
-      <div class="vl-badge">${badge(compensa)}</div>
     </div>`;
 }
 
 function renderConsignadoHTML() {
   const c = window._calc;
-  const precoUnit = parseFloat(document.getElementById('consigPrecoUnit')?.value) || 0;
-  const qtd       = parseFloat(document.getElementById('consigQtd')?.value)       || 10;
-  const prazo     = parseFloat(document.getElementById('consigPrazo')?.value)     || 30;
+  const precoUnit = parseInputNum('consigPrecoUnit');
+  const qtd = parseInputNum('consigQtd') || 10;
+  const prazo = parseInputNum('consigPrazo') || 30;
 
-  if (!precoUnit) return `
-    <div class="atacado-result-card">
-      <div class="card-title">🤝 Consignado</div>
-      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">
-        Informe o valor que você cobra por unidade entregue ao revendedor.
-      </p>
-    </div>`;
+  if (!precoUnit) {
+    return `<div class="note">Informe quanto você recebe por peça no consignado para ver o resultado.</div>`;
+  }
 
-  const lucroUnit    = precoUnit - c.custoTotal;
-  const lucroTotal   = lucroUnit * qtd;
-  const lucroPct     = precoUnit > 0 ? (lucroUnit / precoUnit) * 100 : 0;
-  const compensa     = lucroPct >= 20;
-
-  // Data de acerto
+  const lucroUnit = lucroDe(c, precoUnit);
+  const pct = (lucroUnit / precoUnit) * 100;
   const dataAcerto = new Date();
   dataAcerto.setDate(dataAcerto.getDate() + prazo);
   const dataFmt = dataAcerto.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
   return `
-    <div class="atacado-result-card">
-      <div class="card-title">🤝 Consignado — ${qtd} peças por ${prazo} dias</div>
-      <div class="vl-row" style="grid-template-columns:repeat(3,1fr)">
-        <div class="vl-item"><label>Você recebe por peça</label><div class="vl-value accent">${fmt(precoUnit)}</div></div>
-        <div class="vl-item"><label>Lucro por peça</label><div class="vl-value">${fmt(lucroUnit)}</div></div>
-        <div class="vl-item"><label>Se vender tudo</label><div class="vl-value">${fmt(lucroTotal)} lucro</div></div>
-      </div>
-      <div class="vl-badge">${badge(compensa)}</div>
-      <div class="consig-info">
-        <div class="consig-row">
-          <span>📅 Data limite para acerto</span>
-          <strong>${dataFmt}</strong>
-        </div>
-        <div class="consig-row">
-          <span>💰 Total a receber se vender tudo</span>
-          <strong>${fmt(precoUnit * qtd)}</strong>
-        </div>
-        <div class="consig-row">
-          <span>📦 Custo do lote inteiro repassado</span>
-          <strong>${fmt(c.custoTotal * qtd)}</strong>
-        </div>
-        <div class="consig-row muted">
-          <span>O revendedor devolve o que não vendeu até ${dataFmt} e acerta o pagamento das peças vendidas</span>
-        </div>
+    <div class="sub-card">
+      <span class="eyebrow">Consignado · ${qtd} peças por ${prazo} dias</span>
+      <div class="list">
+        ${listRow('Você recebe por peça', fmt(precoUnit), '', 'strong-accent')}
+        ${listRow('Lucro por peça', fmt(lucroUnit), '', '')}
+        ${listRow('Se vender tudo', fmt(precoUnit * qtd), `Lucro de ${fmt(lucroUnit * qtd)}`)}
+        ${listRow('Custo do lote entregue', fmt(c.custoTotal * qtd))}
+        ${listRow('Data do acerto', dataFmt)}
+        ${listRow('Situação', pill(pct))}
       </div>
     </div>`;
 }
 
-// ── Aba: Marketplace ──────────────────────────────────────────
+// ── Aba: Marketplaces ─────────────────────────────────────────
 function renderMarketplace() {
   const el = document.getElementById('rtab-marketplace');
-  if (!el) return;
   const c = window._calc;
-  if (!c || c.precoBase <= 0) { el.innerHTML = '<div class="empty-state"><div class="icon">🛒</div>Preencha os campos para ver os preços</div>'; return; }
+  if (!el) return;
+  if (!c || c.precoBase <= 0) { el.innerHTML = emptyState('Preencha os campos para ver os preços em cada marketplace.'); return; }
 
-  const rows = taxasEditaveis.map(mp => {
-    // Preço sugerido: garante que após a taxa o vendedor recebe o precoBase
-    const precoSugerido = (c.precoBase + mp.taxaFixa) / (1 - mp.comissao / 100);
-    const taxaCobrada   = precoSugerido * (mp.comissao / 100) + mp.taxaFixa;
-    const recebido      = precoSugerido - taxaCobrada;
-    const lucro         = recebido - c.custoTotal;
-    // Margem calculada sobre o preço de venda (padrão de mercado)
-    const lucroPct      = precoSugerido > 0 ? (lucro / precoSugerido) * 100 : 0;
-    const compensa      = lucroPct >= 20;
-    return `<tr>
-      <td>${mp.nome}</td>
-      <td class="price">${fmt(precoSugerido)}</td>
-      <td class="detail">${fmt(taxaCobrada)}</td>
-      <td>${fmt(lucro)}</td>
-      <td>${fmtPct(lucroPct)}</td>
-      <td>${badge(compensa)}</td>
-    </tr>`;
-  }).join('');
+  // Se o editor de taxas estiver aberto e em uso, só atualiza a lista (não perde o foco)
+  const aberto = el.querySelector('details')?.open;
+  if (aberto && el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+    atualizarLinhasMarketplace();
+    return;
+  }
+
+  const faixaLabel = (mp, i) => {
+    if (mp.faixas.length === 1) return 'Qualquer preço';
+    const de = i === 0 ? 0 : mp.faixas[i - 1].ate;
+    const ate = mp.faixas[i].ate;
+    if (ate === Infinity) return `A partir de R$ ${fmtNum(de, 0)}`;
+    return i === 0 ? `Até R$ ${fmtNum(ate - 0.01, 2)}` : `R$ ${fmtNum(de, 0)} a ${fmtNum(ate - 0.01, 2)}`;
+  };
 
   el.innerHTML = `
-    <table>
-      <thead><tr><th>Marketplace</th><th>Preço sugerido</th><th>Taxa cobrada</th><th>Lucro R$</th><th>Lucro %</th><th>Compensa?</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div style="padding:1rem 1.25rem;border-top:1px solid var(--border)">
-      <div class="card-title" style="margin-bottom:0.5rem">⚙️ Editar taxas</div>
-      <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.75rem">Valores padrão de 2026 — ajuste se necessário</p>
-      <div class="fee-header"><span>Marketplace</span><span style="text-align:center">Comissão %</span><span style="text-align:center">Taxa fixa R$</span></div>
-      <div id="feeEditor"></div>
-    </div>
-  `;
-  renderFeeEditor();
+    <p class="hint" style="margin:8px 0 4px">Preço do anúncio para você receber o mesmo lucro da venda direta, já descontando taxas${c.imposto > 0 ? ' e imposto' : ''}.</p>
+    <div class="list" id="mpRows"></div>
+    <details class="disclosure" ${aberto ? 'open' : ''}>
+      <summary>Ver e editar taxas</summary>
+      <p class="hint" style="margin-top:8px">Taxas para vendedor CNPJ, revisadas em ${TAXAS_ATUALIZADAS_EM}. A comissão varia por categoria — confira no painel do vendedor e ajuste aqui.</p>
+      ${taxasEditaveis.map((m, mi) => `
+        <div class="fee-block">
+          <div class="fee-title"><strong>${escapeHTML(m.nome)}</strong><span class="hint">${escapeHTML(m.obs || '')}</span></div>
+          <div class="fee-grid">
+            <span class="fh">Faixa de preço</span><span class="fh" style="text-align:right">Comissão %</span><span class="fh" style="text-align:right">Fixa R$</span>
+            ${m.faixas.map((f, fi) => `
+              <span class="small">${faixaLabel(m, fi)}</span>
+              <input type="text" inputmode="decimal" value="${String(f.comissao).replace('.', ',')}" data-mp="${mi}" data-faixa="${fi}" data-field="comissao" aria-label="Comissão ${escapeHTML(m.nome)} ${faixaLabel(m, fi)}">
+              <input type="text" inputmode="decimal" value="${f.taxaFixa.toFixed(2).replace('.', ',')}" data-mp="${mi}" data-faixa="${fi}" data-field="taxaFixa" aria-label="Taxa fixa ${escapeHTML(m.nome)} ${faixaLabel(m, fi)}">
+            `).join('')}
+          </div>
+        </div>`).join('')}
+    </details>`;
+
+  el.querySelector('details').addEventListener('input', e => {
+    const { mp, faixa, field } = e.target.dataset;
+    if (mp === undefined) return;
+    taxasEditaveis[mp].faixas[faixa][field] = parseFloat(String(e.target.value).replace(',', '.')) || 0;
+    atualizarLinhasMarketplace();
+  });
+  atualizarLinhasMarketplace();
 }
 
-// ── Vírgula como separador decimal ────────────────────────────
-// Converte vírgula para ponto em TODOS os inputs (number e text)
-function initVirgula() {
-  document.addEventListener('keydown', e => {
-    if (e.key !== ',') return;
-    const el = e.target;
-    if (el.tagName !== 'INPUT') return;
-    e.preventDefault();
-    const s = el.selectionStart, en = el.selectionEnd;
-    if (el.value.includes('.')) return; // já tem ponto
-    el.value = el.value.slice(0, s) + '.' + el.value.slice(en);
-    el.setSelectionRange(s + 1, s + 1);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }, true);
+function atualizarLinhasMarketplace() {
+  const c = window._calc;
+  const wrap = document.getElementById('mpRows');
+  if (!wrap || !c) return;
+
+  const linhas = taxasEditaveis
+    .map(mp => ({ mp, ...precoMarketplace(mp, c.alvo, c.imposto) }))
+    .filter(l => isFinite(l.preco))
+    .sort((a, b) => a.preco - b.preco);
+
+  wrap.innerHTML = linhas.map((l, i) => {
+    const lucro = lucroDe(c, l.preco) - l.taxa;
+    const pct = l.preco > 0 ? (lucro / l.preco) * 100 : 0;
+    const idxFaixa = l.mp.faixas.indexOf(l.faixa);
+    const degrau = idxFaixa > 0 && l.mp.faixas.length > 1
+      ? ` · passou de R$ ${fmtNum(l.mp.faixas[idxFaixa - 1].ate, 0)}, taxa fixa ${fmt(l.faixa.taxaFixa)}`
+      : '';
+    return `<div class="mp-row">
+      <div class="mp-name">
+        <strong>${escapeHTML(l.mp.nome)}${i === 0 ? ' <span class="pill neutral" style="margin-left:4px">Menor preço</span>' : ''}</strong>
+        <span>${fmtNum(l.faixa.comissao)}% + ${fmt(l.faixa.taxaFixa)} = taxa ${fmt(l.taxa)} · lucro ${fmt(lucro)}${degrau}</span>
+      </div>
+      <div class="mp-price"><strong>${fmt(l.preco)}</strong>${pill(pct)}</div>
+    </div>`;
+  }).join('');
 }
 
-// Lê valor de input aceitando vírgula ou ponto
-function parseInputNum(id) {
-  const el = document.getElementById(id);
-  if (!el) return 0;
-  return parseFloat(String(el.value).replace(',', '.')) || 0;
+// ── Registro de cálculos (alimenta o dashboard do admin) ──────
+// Grava só quando o resultado muda de verdade e o usuário para de digitar.
+let calcLogTimer = null;
+let ultimoLog = '';
+function agendarLogCalc() {
+  clearTimeout(calcLogTimer);
+  calcLogTimer = setTimeout(salvarLogCalc, 6000);
+}
+async function salvarLogCalc() {
+  const c = window._calc;
+  if (!c || c.custoTotal <= 0 || !window.currentUser) return;
+  const nome = document.getElementById('nomeProduto')?.value || '';
+  const assinatura = [nome, c.custoTotal.toFixed(2), c.precoBase.toFixed(2)].join('|');
+  if (assinatura === ultimoLog) return;
+  ultimoLog = assinatura;
+  fetch('/api/calc-log', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nome_produto: nome,
+      dados: {
+        custoTotal: +c.custoTotal.toFixed(2), precoBase: +c.precoBase.toFixed(2), lucroValor: +c.lucroValor.toFixed(2),
+        margem: c.margem, modo: modoAtual, totalGramas: c.totalGramas, totalHoras: c.totalHoras,
+        mesas: beds.map(b => ({ nome: b.nomePeca, horas: b.horas, gramas: b.gramas, pecas: b.pecas })),
+      },
+    }),
+  }).catch(() => {});
 }
 
 // ── Inicialização ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  initVirgula();
   renderFilamentoSelector();
   popularEstados();
   initResultTabs();
   initModos();
-  initModoIniciante();
-  renderFeeEditor();
+  initMargem();
   initTooltips();
 
-  document.querySelectorAll('input[type=number], input[type=text]').forEach(el => {
-    el.addEventListener('input', calcular);
-  });
+  document.getElementById('modoInicianteBtn')?.addEventListener('click', aplicarValoresTipicos);
 
-  // Nome do produto atualiza o ciclo
-  document.getElementById('nomeProduto')?.addEventListener('input', () => {
-    if (typeof atualizarCiclo === 'function') atualizarCiclo();
+  // Qualquer campo fixo do formulário recalcula (as mesas cuidam dos próprios campos)
+  document.getElementById('formCol').addEventListener('input', e => {
+    if (e.target.closest('#bedsContainer')) return;
+    calcular();
+  });
+  document.getElementById('arredondar')?.addEventListener('change', calcular);
+
+  document.getElementById('dockBtn')?.addEventListener('click', () => {
+    document.getElementById('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   calcular();
-
-  // ── Log de cálculos ───────────────────────────────────────────
-  // Salva automaticamente 3s após o último cálculo (debounce)
-  let calcLogTimer = null;
-
-  function agendarLogCalc() {
-    clearTimeout(calcLogTimer);
-    calcLogTimer = setTimeout(salvarLogCalc, 3000);
-  }
-
-  async function salvarLogCalc() {
-    const c = window._calc;
-    if (!c || c.custoTotal <= 0) return;
-
-    // Só salva se estiver logado
-    if (typeof _sb === 'undefined') return;
-    const { data: { session } } = await _sb.auth.getSession();
-    if (!session) return;
-
-    const nomeProd = document.getElementById('nomeProduto')?.value || '';
-
-    await _sb.from('calc_logs').insert({
-      email:         session.user.email,
-      user_id:       session.user.id,
-      nome_produto:  nomeProd,
-      dados: {
-        custoTotal:  c.custoTotal,
-        precoBase:   c.precoBase,
-        lucroValor:  c.lucroValor,
-        margem:      c.margem,
-        totalGramas: c.totalGramas,
-        totalHoras:  c.totalHoras,
-        mesas:       (typeof beds !== 'undefined') ? beds.map(b => ({
-          nome:  b.nomePeca,
-          horas: b.horas,
-          gramas: b.gramas,
-          pecas: b.pecas,
-        })) : [],
-      },
-    });
-  }
-
-  // Dispara log após cada cálculo
-  const calcularOriginal = calcular;
-  window.calcular = function() {
-    calcularOriginal();
-    agendarLogCalc();
-  };
-  // Reatribui os listeners para usar a versão com log
-  document.querySelectorAll('input[type=number], input[type=text]').forEach(el => {
-    el.removeEventListener('input', calcularOriginal);
-    el.addEventListener('input', window.calcular);
-  });
 });
