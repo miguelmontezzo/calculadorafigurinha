@@ -1,149 +1,120 @@
-const SUPABASE_URL      = 'https://idurcwbkuyziawvzvvtv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkdXJjd2JrdXl6aWF3dnp2dnR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTM3NzQsImV4cCI6MjA5NjUyOTc3NH0.4WG7_UKat2YvpC5JTa9eTx4buEzqiPz2Jt4IGWjMKCQ';
+// Autenticação no navegador — conversa com /api/login, /api/me e /api/logout.
+// A sessão fica num cookie HttpOnly criado pelo servidor (o JS não precisa guardar nada).
 
-const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ── Proteção da calculadora ───────────────────────────────────
-async function requireAuth() {
-  const { data: { session } } = await _sb.auth.getSession();
-
-  if (!session) {
-    window.location.href = '/index.html';
-    return null;
-  }
-
-  const { data } = await _sb
-    .from('users_autorizados')
-    .select('ativo')
-    .eq('email', session.user.email)
-    .maybeSingle();
-
-  if (!data || !data.ativo) {
-    await _sb.auth.signOut();
-    window.location.href = '/index.html?erro=acesso_negado';
-    return null;
-  }
-
-  return session;
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: 'same-origin',
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
+  });
+  let json = {};
+  try { json = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data: json };
 }
 
-// ── Login direto por email ────────────────────────────────────
+function toast(msg, type = '') {
+  let el = document.getElementById('_toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_toast';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  requestAnimationFrame(() => el.classList.add('show'));
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ── Página de login ───────────────────────────────────────────
 function initLogin() {
-  if (!document.getElementById('loginForm')) return;
+  const form = document.getElementById('loginForm');
+  const btn = document.getElementById('loginBtn');
+  const input = document.getElementById('email');
+  const errEl = document.getElementById('errorMsg');
+  const modal = document.getElementById('modalNaoEncontrado');
 
-  // Se já tem sessão ativa, vai direto
-  _sb.auth.getSession().then(({ data: { session } }) => {
-    if (session) window.location.href = '/calculadora.html';
-  });
+  // Já logado? Vai direto para a calculadora.
+  api('/api/me').then(r => { if (r.ok) window.location.replace('/calculadora'); });
 
-  if (new URLSearchParams(window.location.search).get('erro') === 'acesso_negado') {
-    showError('Seu acesso não está liberado. Adquira o acesso para continuar.');
-  }
+  const showError = msg => { errEl.textContent = msg; errEl.classList.add('visible'); };
+  const clearError = () => errEl.classList.remove('visible');
+  const setBusy = busy => { btn.disabled = busy; btn.textContent = busy ? 'Entrando…' : 'Continuar'; };
 
-  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  input.addEventListener('input', clearError);
+
+  form.addEventListener('submit', async e => {
     e.preventDefault();
-    const email = document.getElementById('email').value.trim().toLowerCase();
-    const btn   = document.getElementById('loginBtn');
-
     clearError();
-
-    if (!email || !email.includes('@')) {
+    const email = input.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       showError('Digite um email válido.');
+      input.focus();
       return;
     }
 
-    btn.disabled = true;
-    btn.textContent = 'Entrando...';
-
-    // Chama a API que verifica o email e gera o token
-    let res, json;
+    setBusy(true);
+    let r;
     try {
-      res  = await fetch('/api/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email }),
-      });
-      json = await res.json();
+      r = await api('/api/login', { method: 'POST', body: { email } });
     } catch {
-      showError('Erro de conexão. Tente novamente.');
-      btn.disabled = false;
-      btn.textContent = 'Entrar';
-      return;
+      setBusy(false);
+      return showError('Sem conexão. Verifique sua internet e tente de novo.');
     }
 
-    if (!res.ok) {
-      // Email não cadastrado → abre modal
-      if (res.status === 404) {
-        const emailEl = document.getElementById('modalEmail');
-        if (emailEl) emailEl.textContent = email;
-        document.getElementById('modalNaoEncontrado')?.classList.add('visible');
-      } else {
-        showError(json.error || 'Erro ao entrar. Tente novamente.');
+    if (!r.ok) {
+      setBusy(false);
+      if (r.data.code === 'not_found') {
+        document.getElementById('modalEmail').textContent = email;
+        modal.classList.add('visible');
+        return;
       }
-      btn.disabled = false;
-      btn.textContent = 'Entrar';
-      return;
+      return showError(r.data.error || 'Não foi possível entrar. Tente novamente.');
     }
 
-    // Mostra tela de carregamento (impressora 3D)
-    mostrarLoading();
-
-    // Cria sessão no browser com o token gerado pelo servidor
-    const { error: verifyError } = await _sb.auth.verifyOtp({
-      token_hash: json.token_hash,
-      type:       'email',
-    });
-
-    if (verifyError) {
-      esconderLoading();
-      showError('Erro ao criar sessão. Tente novamente.');
-      btn.disabled = false;
-      btn.textContent = 'Entrar';
-      return;
-    }
-
-    // Aguarda a animação terminar (~2s) antes de redirecionar
-    setTimeout(() => {
-      window.location.href = '/calculadora.html';
-    }, 2200);
+    document.getElementById('loadingScreen').classList.add('visible');
+    setTimeout(() => window.location.replace('/calculadora'), 1600);
   });
 
-  function mostrarLoading() {
-    const s = document.getElementById('loadingScreen');
-    if (!s) return;
-    // Reinicia a animação da barra de progresso
-    const fill = document.getElementById('progressFill');
-    if (fill) { fill.style.animation = 'none'; fill.offsetHeight; fill.style.animation = ''; }
-    s.classList.add('visible');
-  }
-
-  function esconderLoading() {
-    document.getElementById('loadingScreen')?.classList.remove('visible');
-  }
-
-  function showError(msg) {
-    const el = document.getElementById('errorMsg');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('visible');
-  }
-
-  function clearError() {
-    document.getElementById('errorMsg')?.classList.remove('visible');
-  }
+  document.getElementById('modalFechar').addEventListener('click', () => {
+    modal.classList.remove('visible');
+    input.select();
+  });
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('visible'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.remove('visible'); });
 }
 
-// ── Logout ────────────────────────────────────────────────────
+// ── Páginas protegidas ────────────────────────────────────────
+// Dispara o evento "auth:ready" com { email, nome, perfil } quando o usuário é válido.
+async function requireAuth() {
+  let r;
+  try {
+    r = await api('/api/me');
+  } catch {
+    toast('Sem conexão com o servidor.', 'error');
+    return null;
+  }
+  if (!r.ok) {
+    window.location.replace('/');
+    return null;
+  }
+  window.currentUser = r.data;
+  const emailEl = document.getElementById('headerEmail');
+  if (emailEl) emailEl.textContent = r.data.email;
+  document.body.classList.remove('auth-pending');
+  document.dispatchEvent(new CustomEvent('auth:ready', { detail: r.data }));
+  return r.data;
+}
+
 function initLogout() {
-  const btn = document.getElementById('logoutBtn');
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
-    await _sb.auth.signOut();
-    window.location.href = '/index.html';
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    await api('/api/logout', { method: 'POST' }).catch(() => {});
+    window.location.replace('/');
   });
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────
 if (document.getElementById('loginForm')) {
   initLogin();
 } else if (document.getElementById('logoutBtn')) {

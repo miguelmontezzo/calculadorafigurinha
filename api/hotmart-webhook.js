@@ -1,106 +1,49 @@
-const { createClient } = require('@supabase/supabase-js');
+// POST /api/hotmart-webhook → libera ou revoga acesso automaticamente após compra/cancelamento.
+//
+// A Hotmart envia o "hottok" (token configurado no painel dela) no header X-HOTMART-HOTTOK
+// (webhook v2) ou no corpo (v1). Comparamos com HOTMART_SECRET.
 const crypto = require('crypto');
+const { getSql, normalizeEmail, isValidEmail } = require('../lib/db');
+const { send, getBody, safeEqual, handler } = require('../lib/http');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const EVENTOS_LIBERAR = new Set(['PURCHASE_APPROVED', 'PURCHASE_COMPLETE', 'PURCHASE_REACTIVATED']);
+const EVENTOS_REVOGAR = new Set(['PURCHASE_CANCELLED', 'PURCHASE_REFUNDED', 'PURCHASE_CHARGEBACK', 'SUBSCRIPTION_CANCELLATION']);
 
-// Eventos que LIBERAM acesso
-const EVENTOS_LIBERAR = new Set([
-  'PURCHASE_APPROVED',
-  'PURCHASE_COMPLETE',
-  'PURCHASE_REACTIVATED',  // reativação após inadimplência
-]);
-
-// Eventos que REVOGAM acesso
-const EVENTOS_REVOGAR = new Set([
-  'PURCHASE_CANCELLED',
-  'PURCHASE_REFUNDED',
-  'PURCHASE_CHARGEBACK',
-  'SUBSCRIPTION_CANCELLATION',
-]);
-
-function verificarAssinatura(rawBody, assinaturaRecebida, secret) {
-  if (!assinaturaRecebida || !secret) return false;
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(rawBody);                          // usa o body bruto, não re-serializado
-  const esperada = hmac.digest('hex');
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(esperada, 'hex'),
-      Buffer.from(assinaturaRecebida, 'hex')
-    );
-  } catch {
-    return false;
-  }
+function autenticado(req, body) {
+  const secret = process.env.HOTMART_SECRET;
+  if (!secret) return false;
+  const recebido = req.headers['x-hotmart-hottok'] || body.hottok || '';
+  if (safeEqual(recebido, secret)) return true;
+  // Compatibilidade com a versão antiga deste projeto (HMAC do corpo)
+  const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+  const hmac = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  return safeEqual(recebido, hmac);
 }
 
-module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+module.exports = handler(async (req, res) => {
+  if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
 
-  // Lê body raw para verificar assinatura corretamente
-  const rawBody = typeof req.body === 'string'
-    ? req.body
-    : JSON.stringify(req.body);
+  const body = getBody(req);
+  if (!autenticado(req, body)) return send(res, 401, { error: 'Hottok inválido' });
 
-  const assinatura = req.headers['x-hotmart-hottok'] || '';
-
-  if (!verificarAssinatura(rawBody, assinatura, process.env.HOTMART_SECRET)) {
-    return res.status(401).json({ error: 'Assinatura inválida' });
-  }
-
-  const body   = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  const evento = body?.event;
-
+  const evento = body.event;
   const liberar = EVENTOS_LIBERAR.has(evento);
   const revogar = EVENTOS_REVOGAR.has(evento);
+  if (!liberar && !revogar) return send(res, 200, { message: `Evento ignorado: ${evento}` });
 
-  if (!liberar && !revogar) {
-    return res.status(200).json({ message: `Evento ignorado: ${evento}` });
-  }
+  const buyer = body.data?.buyer || {};
+  const email = normalizeEmail(buyer.email);
+  if (!isValidEmail(email)) return send(res, 400, { error: 'Email do comprador não encontrado' });
 
-  const buyer = body?.data?.buyer;
-  if (!buyer?.email) {
-    return res.status(400).json({ error: 'Email do comprador não encontrado' });
-  }
-
-  const email = buyer.email.toLowerCase().trim();
-
+  const sql = getSql();
   if (liberar) {
-    const { error } = await supabase
-      .from('users_autorizados')
-      .upsert(
-        {
-          email,
-          nome:        buyer.name || '',
-          data_compra: new Date().toISOString(),
-          ativo:       true,
-        },
-        { onConflict: 'email' }
-      );
-
-    if (error) {
-      console.error('Supabase upsert error:', error);
-      return res.status(500).json({ error: 'Erro ao liberar acesso' });
-    }
-
-    return res.status(200).json({ message: `Acesso liberado: ${email}` });
+    await sql`
+      INSERT INTO members (email, nome, origem, data_compra, ativo)
+      VALUES (${email}, ${buyer.name || ''}, 'hotmart', now(), true)
+      ON CONFLICT (email) DO UPDATE SET ativo = true, data_compra = now(), updated_at = now()`;
+    return send(res, 200, { message: `Acesso liberado: ${email}` });
   }
 
-  if (revogar) {
-    const { error } = await supabase
-      .from('users_autorizados')
-      .update({ ativo: false })
-      .eq('email', email);
-
-    if (error) {
-      console.error('Supabase update error:', error);
-      return res.status(500).json({ error: 'Erro ao revogar acesso' });
-    }
-
-    return res.status(200).json({ message: `Acesso revogado: ${email}` });
-  }
-};
+  await sql`UPDATE members SET ativo = false, updated_at = now() WHERE email = ${email}`;
+  send(res, 200, { message: `Acesso revogado: ${email}` });
+});

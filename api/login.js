@@ -1,67 +1,27 @@
-const { createClient } = require('@supabase/supabase-js');
+// POST /api/login  { email }  → cria a sessão se o email for de um membro ativo
+const { getSql, normalizeEmail, isValidEmail } = require('../lib/db');
+const { send, getBody, handler } = require('../lib/http');
+const { setSession } = require('../lib/session');
 
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+module.exports = handler(async (req, res) => {
+  if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const email = normalizeEmail(getBody(req).email);
+  if (!isValidEmail(email)) return send(res, 400, { error: 'Digite um email válido.' });
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ error: 'Servidor mal configurado.' });
+  const sql = getSql();
+  const rows = await sql`SELECT email, nome, ativo FROM members WHERE email = ${email}`;
+  const user = rows[0];
+
+  if (!user) {
+    return send(res, 404, { error: 'Email não cadastrado.', code: 'not_found' });
+  }
+  if (!user.ativo) {
+    return send(res, 403, { error: 'Seu acesso está inativo. Fale com o suporte.', code: 'inactive' });
   }
 
-  const { email } = req.body || {};
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Email inválido.' });
-  }
+  setSession(req, res, user.email);
+  await sql`INSERT INTO login_logs (email) VALUES (${user.email})`;
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
-  const emailLower = email.toLowerCase().trim();
-
-  // 1. Verifica se o email está cadastrado e ativo
-  const { data: usuario } = await supabase
-    .from('users_autorizados')
-    .select('ativo, nome')
-    .eq('email', emailLower)
-    .maybeSingle();
-
-  if (!usuario) {
-    return res.status(404).json({ error: 'Email não cadastrado. Adquira o acesso para continuar.' });
-  }
-
-  if (!usuario.ativo) {
-    return res.status(403).json({ error: 'Conta inativa. Entre em contato com o suporte.' });
-  }
-
-  // 2. Gera magic link — extrai o token sem enviar email
-  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-    type:    'magiclink',
-    email:   emailLower,
-    options: { redirectTo: process.env.SITE_URL + '/calculadora.html' },
-  });
-
-  if (linkError) {
-    console.error('generateLink error:', linkError);
-    return res.status(500).json({ error: 'Erro ao gerar acesso. Tente novamente.' });
-  }
-
-  // Salva log de login (sem bloquear a resposta)
-  supabase.from('login_logs').insert({
-    email:   emailLower,
-    user_id: linkData.user?.id || null,
-  }).then(({ error }) => {
-    if (error) console.error('login_log error:', error.message);
-  });
-
-  // Retorna o token para o frontend criar a sessão diretamente
-  return res.status(200).json({
-    token_hash: linkData.properties?.hashed_token,
-    nome:       usuario.nome || '',
-  });
-};
+  send(res, 200, { email: user.email, nome: user.nome });
+});

@@ -8,14 +8,16 @@
       "source": "/(.*)",
       "headers": [
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
+    },
+    {
+      "source": "/(lib|scripts)/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
     }
   ],
   "functions": {
-    "api/hotmart-webhook.js": { "maxDuration": 10 },
-    "api/import-members.js":  { "maxDuration": 10 },
-    "api/login.js":           { "maxDuration": 10 },
-    "api/dashboard.js":       { "maxDuration": 10 }
+    "api/*.js": { "maxDuration": 10 }
   }
 }
