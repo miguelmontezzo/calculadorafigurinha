@@ -6,7 +6,14 @@
   <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <title>Calculadora 3D</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230071e3'/%3E%3Cpath d='M16 7l8 4.5v9L16 25l-8-4.5v-9z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Calculadora">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +27,7 @@
     </a>
     <div class="nav-actions">
       <span class="nav-user" id="headerEmail"></span>
+      <button class="btn btn-tinted btn-sm" id="installBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span class="only-wide">Instalar app</span><span class="only-narrow">Instalar</span></button>
       <button class="btn btn-secondary btn-sm" id="saveProfileBtn" title="Guarda filamento, energia, custos e margem para as próximas vezes">Salvar<span class="only-wide">padrões</span></button>
       <button class="btn btn-plain btn-sm" id="logoutBtn">Sair</button>
     </div>
@@ -326,6 +334,20 @@
   </div>
 </div>
 
+<!-- Instalar no iPhone / iPad -->
+<div id="installModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+  <div class="modal modal-center">
+    <div class="install-icon"><img src="/icons/apple-touch-icon.png" alt="" width="72" height="72"></div>
+    <h2 id="installTitle">Instale o app no seu iPhone</h2>
+    <ol class="install-steps">
+      <li>Toque em <strong>Compartilhar</strong> <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="ícone compartilhar"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> na barra do Safari</li>
+      <li>Escolha <strong>Adicionar à Tela de Início</strong></li>
+      <li>Toque em <strong>Adicionar</strong>. Pronto!</li>
+    </ol>
+    <div class="actions"><button class="btn btn-primary btn-block" data-fechar>Entendi</button></div>
+  </div>
+</div>
+
 <script src="auth.js"></script>
 <script src="energia-estados.js"></script>
 <script src="marketplaces.js"></script>
@@ -335,5 +357,6 @@
 <script src="planner.js"></script>
 <script src="contrato.js"></script>
 <script src="profile.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

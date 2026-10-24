@@ -688,3 +688,14 @@ code.kbd { font-family: var(--mono); font-size: 12px; background: var(--fill-str
 
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .list-row > .truncate { flex: 1; }
+
+/* ── App instalado (PWA) ────────────────────────────────────── */
+.only-narrow { display: none; }
+@media (max-width: 640px) { .only-narrow { display: inline; } }
+.install-icon img { border-radius: 16px; box-shadow: 0 8px 24px rgba(0,113,227,.25); margin-bottom: 18px; }
+.install-steps { text-align: left; margin: 0 auto 24px; padding-left: 22px; max-width: 300px; display: grid; gap: 10px; font-size: 15px; color: var(--text); }
+.install-steps svg { vertical-align: -3px; color: var(--accent); }
+@media (display-mode: standalone) {
+  .nav { padding-top: env(safe-area-inset-top); }
+  .price-dock { bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
